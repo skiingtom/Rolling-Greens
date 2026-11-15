@@ -1777,3 +1777,80 @@ button:disabled {
     font-size: clamp(2.4rem, 12vw, 3.6rem);
   }
 }
+
+/* ——— 3D realism course view ——— */
+.world--3d .world__viewport--3d {
+  cursor: grab;
+  background:
+    radial-gradient(ellipse 70% 40% at 50% 0%, rgba(255, 255, 255, 0.45), transparent 50%),
+    linear-gradient(180deg, #5aafdf 0%, #87c6ef 40%, #9fd4a8 100%);
+  padding: 0;
+}
+
+.world__canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+  border-radius: 21px;
+  touch-action: none;
+}
+
+.zoo-chip--live {
+  background: rgba(34, 197, 94, 0.16);
+  border-color: rgba(22, 163, 74, 0.35);
+  color: #166534;
+}
+
+.label3d {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.4rem 0.65rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(20, 50, 45, 0.12);
+  box-shadow: 0 8px 20px rgba(15, 40, 30, 0.18);
+  font-family: var(--font-body);
+  color: var(--ink);
+  white-space: nowrap;
+  text-align: center;
+  pointer-events: none;
+  user-select: none;
+}
+
+.label3d strong {
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.label3d span,
+.label3d em {
+  font-size: 0.66rem;
+  color: var(--muted);
+  font-weight: 700;
+  font-style: normal;
+}
+
+.label3d--claim {
+  background: rgba(255, 251, 235, 0.95);
+  border-color: rgba(245, 158, 11, 0.45);
+}
+
+.label3d--claim em {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.playtest--3d .playtest__stage--3d {
+  aspect-ratio: 16 / 10;
+  max-height: min(72vh, 700px);
+  background: #5aafdf;
+}
+
+.playtest__canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}

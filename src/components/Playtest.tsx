@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { aimPoint, createBall, stepBall, strike, type BallState } from '../game/physics'
-import { drawHole } from '../game/render'
 import { CADDIE_FEE, CART_RENTAL_FEE, beverageCartsReady } from '../game/staff'
 import { useGame } from '../game/store'
 import type { Point } from '../game/types'
+import { PlaytestScene } from '../scene3d/PlaytestScene'
 
 export function Playtest() {
   const hole = useGame((s) => s.getActiveHole())
@@ -17,21 +17,16 @@ export function Playtest() {
   const carts = useGame((s) => s.carts)
   const drinksOn = beverageCartsReady(staff, carts)
 
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const wrapRef = useRef<HTMLDivElement>(null)
   const ballRef = useRef<BallState | null>(null)
   const trailRef = useRef<Point[]>([])
   const aimRef = useRef<Point | null>(null)
   const dragging = useRef(false)
-  const cellRef = useRef(10)
   const rafRef = useRef(0)
 
   const [strokes, setStrokes] = useState(0)
   const strokesRef = useRef(0)
   const isRange = hole?.kind === 'range'
-  const [status, setStatus] = useState(
-    'Drag from the ball to aim and set power.',
-  )
+  const [status, setStatus] = useState('Drag near the ball to aim and set power.')
   const [finished, setFinished] = useState(false)
   const [useCaddie, setUseCaddie] = useState(false)
   const [useCart, setUseCart] = useState(false)
@@ -39,7 +34,6 @@ export function Playtest() {
   const caddieCharged = useRef(false)
   const cartCharged = useRef(false)
   const useCaddieRef = useRef(false)
-  const [, bump] = useState(0)
   useCaddieRef.current = useCaddie
 
   const resetBall = useCallback(() => {
@@ -56,58 +50,13 @@ export function Playtest() {
     setStatus(
       hole.kind === 'range'
         ? 'Pull back from the bay and aim for the distance flag.'
-        : 'Drag from the ball to aim and set power.',
+        : 'Drag near the ball to aim and set power.',
     )
-    bump((n) => n + 1)
   }, [hole])
 
   useEffect(() => {
     resetBall()
   }, [resetBall])
-
-  const redraw = useCallback(() => {
-    const canvas = canvasRef.current
-    const wrap = wrapRef.current
-    if (!canvas || !wrap || !hole || !ballRef.current) return
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    const availW = wrap.clientWidth
-    const availH = wrap.clientHeight
-    const cell = Math.max(4, Math.floor(Math.min(availW / hole.width, availH / hole.height)))
-    cellRef.current = cell
-    canvas.width = hole.width * cell
-    canvas.height = hole.height * cell
-
-    const ball = ballRef.current
-    drawHole(ctx, hole, {
-      cell,
-      ball: { x: ball.x, y: ball.y },
-      trail: trailRef.current,
-    })
-
-    if (dragging.current && aimRef.current && !ball.moving) {
-      const ax = ball.x * cell
-      const ay = ball.y * cell
-      const tx = aimRef.current.x * cell
-      const ty = aimRef.current.y * cell
-      ctx.strokeStyle = 'rgba(243, 247, 239, 0.65)'
-      ctx.lineWidth = 2
-      ctx.setLineDash([6, 5])
-      ctx.beginPath()
-      ctx.moveTo(ax, ay)
-      // Aim opposite of drag (pull-back)
-      const dx = ax - (tx - ax)
-      const dy = ay - (ty - ay)
-      ctx.lineTo(dx, dy)
-      ctx.stroke()
-      ctx.setLineDash([])
-      ctx.beginPath()
-      ctx.arc(dx, dy, 4, 0, Math.PI * 2)
-      ctx.fillStyle = '#e4d3a4'
-      ctx.fill()
-    }
-  }, [hole])
 
   useEffect(() => {
     const loop = () => {
@@ -139,12 +88,11 @@ export function Playtest() {
           }
         }
       }
-      redraw()
       rafRef.current = requestAnimationFrame(loop)
     }
     rafRef.current = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(rafRef.current)
-  }, [hole, redraw, recordPlay])
+  }, [hole, recordPlay])
 
   function toggleCaddie() {
     if (!caddiesAvailable()) {
@@ -190,49 +138,26 @@ export function Playtest() {
     setUseCart(true)
   }
 
-  useEffect(() => {
-    const wrap = wrapRef.current
-    if (!wrap) return
-    const ro = new ResizeObserver(() => redraw())
-    ro.observe(wrap)
-    return () => ro.disconnect()
-  }, [redraw])
-
-  function toWorld(e: ReactPointerEvent): Point {
-    const canvas = canvasRef.current!
-    const rect = canvas.getBoundingClientRect()
-    const scaleX = canvas.width / rect.width
-    const scaleY = canvas.height / rect.height
-    const cell = cellRef.current
-    return {
-      x: ((e.clientX - rect.left) * scaleX) / cell,
-      y: ((e.clientY - rect.top) * scaleY) / cell,
-    }
-  }
-
-  function onDown(e: ReactPointerEvent) {
+  function onAimDown(p: Point) {
     const ball = ballRef.current
     if (!ball || ball.moving || finished) return
-    const p = toWorld(e)
-    if (Math.hypot(p.x - ball.x, p.y - ball.y) > 3.5) return
+    if (Math.hypot(p.x - ball.x, p.y - ball.y) > 5) return
     dragging.current = true
     aimRef.current = p
-    ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
   }
 
-  function onMove(e: ReactPointerEvent) {
+  function onAimMove(p: Point) {
     if (!dragging.current) return
-    aimRef.current = toWorld(e)
+    aimRef.current = p
   }
 
-  function onUp(e: ReactPointerEvent) {
+  function onAimUp() {
     if (!dragging.current || !ballRef.current || !aimRef.current) {
       dragging.current = false
       return
     }
     const ball = ballRef.current
     const aim = aimRef.current
-    // Pull-back: direction opposite of drag
     const target = {
       x: ball.x - (aim.x - ball.x),
       y: ball.y - (aim.y - ball.y),
@@ -246,11 +171,6 @@ export function Playtest() {
     }
     dragging.current = false
     aimRef.current = null
-    try {
-      ;(e.target as HTMLElement).releasePointerCapture(e.pointerId)
-    } catch {
-      /* ignore */
-    }
   }
 
   if (!hole) {
@@ -285,7 +205,7 @@ export function Playtest() {
                 : `+${vsPar}`
 
   return (
-    <main className="playtest">
+    <main className="playtest playtest--3d">
       <div className="playtest__hud">
         <div>
           <h1>{hole.name}</h1>
@@ -294,6 +214,7 @@ export function Playtest() {
             <span>
               {isRange ? 'Shots' : 'Strokes'} <strong>{strokes}</strong>
             </span>
+            <span className="zoo-chip zoo-chip--live">3D</span>
           </div>
         </div>
         <div className="topbar__actions">
@@ -304,18 +225,20 @@ export function Playtest() {
             Editor
           </button>
           <button className="btn btn--solid" type="button" onClick={() => setScreen('course')}>
-            Park map
+            Course
           </button>
         </div>
       </div>
 
-      <div ref={wrapRef} className="playtest__stage">
-        <canvas
-          ref={canvasRef}
-          onPointerDown={onDown}
-          onPointerMove={onMove}
-          onPointerUp={onUp}
-          onPointerCancel={onUp}
+      <div className="playtest__stage playtest__stage--3d">
+        <PlaytestScene
+          hole={hole}
+          ballRef={ballRef}
+          trailRef={trailRef}
+          aimRef={aimRef}
+          draggingRef={dragging}
+          useCart={useCart}
+          onPointerAim={{ onDown: onAimDown, onMove: onAimMove, onUp: onAimUp }}
         />
       </div>
 
