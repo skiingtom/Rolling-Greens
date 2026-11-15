@@ -2,9 +2,7 @@ import { useRef, type MutableRefObject } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 
-const SKINS = ['#f1c27d', '#c68642', '#ffdbac', '#e0ac69']
-const SHIRTS = ['#ef4444', '#3b82f6', '#22c55e', '#f59e0b', '#a855f7', '#ec4899', '#14b8a6']
-const PANTS = ['#1e293b', '#334155', '#0f766e', '#44403c']
+import { CART_BODY, CART_ROOF, PANTS, SHIRTS, SKINS } from './terrainColors'
 
 export type FigurePose = 'idle' | 'walk' | 'swing' | 'seated'
 
@@ -29,6 +27,7 @@ export function GolferFigure({
   const skin = SKINS[hueSeed % SKINS.length]
   const shirt = SHIRTS[hueSeed % SHIRTS.length]
   const pants = PANTS[hueSeed % PANTS.length]
+  const cap = hueSeed % 3 === 0 ? '#ece9e1' : hueSeed % 3 === 1 ? '#3a3f44' : '#c9c1ad'
 
   useFrame(({ clock }) => {
     if (!group.current) return
@@ -75,45 +74,45 @@ export function GolferFigure({
     <group ref={group}>
       <mesh ref={legL} position={[-0.12, 0.45, 0]} castShadow>
         <capsuleGeometry args={[0.09, 0.45, 4, 8]} />
-        <meshStandardMaterial color={pants} />
+        <meshLambertMaterial color={pants} />
       </mesh>
       <mesh ref={legR} position={[0.12, 0.45, 0]} castShadow>
         <capsuleGeometry args={[0.09, 0.45, 4, 8]} />
-        <meshStandardMaterial color={pants} />
+        <meshLambertMaterial color={pants} />
       </mesh>
       <mesh position={[0, 1.05, 0]} castShadow>
         <capsuleGeometry args={[0.22, 0.45, 4, 8]} />
-        <meshStandardMaterial color={shirt} />
+        <meshLambertMaterial color={shirt} />
       </mesh>
       <mesh position={[0, 1.55, 0]} castShadow>
         <sphereGeometry args={[0.18, 12, 10]} />
-        <meshStandardMaterial color={skin} />
+        <meshLambertMaterial color={skin} />
       </mesh>
       <mesh position={[0, 1.68, 0.02]} castShadow>
         <sphereGeometry args={[0.14, 10, 8]} />
-        <meshStandardMaterial color={shirt} />
+        <meshLambertMaterial color={cap} />
       </mesh>
       <mesh position={[0, 1.62, 0.16]}>
         <boxGeometry args={[0.22, 0.04, 0.14]} />
-        <meshStandardMaterial color={shirt} />
+        <meshLambertMaterial color={cap} />
       </mesh>
       <group ref={arm} position={[0.2, 1.2, 0]}>
         <mesh position={[0.05, -0.25, 0]} castShadow>
           <capsuleGeometry args={[0.07, 0.35, 4, 6]} />
-          <meshStandardMaterial color={skin} />
+          <meshLambertMaterial color={skin} />
         </mesh>
         <mesh position={[0.08, -0.7, 0.05]} rotation={[0.2, 0, 0.1]} castShadow>
           <cylinderGeometry args={[0.03, 0.025, 1.15, 6]} />
-          <meshStandardMaterial color="#94a3b8" metalness={0.6} roughness={0.35} />
+          <meshLambertMaterial color="#8d9296" />
         </mesh>
         <mesh position={[0.1, -1.28, 0.12]} rotation={[0.4, 0.2, 0]} castShadow>
           <boxGeometry args={[0.22, 0.08, 0.35]} />
-          <meshStandardMaterial color="#e2e8f0" metalness={0.7} roughness={0.25} />
+          <meshLambertMaterial color="#b9bcbe" />
         </mesh>
       </group>
       <mesh position={[-0.22, 1.05, 0]} castShadow>
         <capsuleGeometry args={[0.07, 0.32, 4, 6]} />
-        <meshStandardMaterial color={skin} />
+        <meshLambertMaterial color={skin} />
       </mesh>
     </group>
   )
@@ -124,15 +123,15 @@ export function GolfCartModel({ beverage = false }: { beverage?: boolean }) {
     <group>
       <mesh position={[0, 0.55, 0]} castShadow>
         <boxGeometry args={[1.6, 0.55, 2.4]} />
-        <meshStandardMaterial color={beverage ? '#f59e0b' : '#f8fafc'} roughness={0.45} metalness={0.15} />
+        <meshLambertMaterial color={beverage ? '#c9a24a' : CART_BODY} />
       </mesh>
       <mesh position={[0, 0.95, 0.15]} castShadow>
         <boxGeometry args={[1.45, 0.35, 0.9]} />
-        <meshStandardMaterial color="#1e293b" />
+        <meshLambertMaterial color="#2a2c2b" />
       </mesh>
       <mesh position={[0, 1.85, -0.1]} castShadow>
         <boxGeometry args={[1.7, 0.08, 2.2]} />
-        <meshStandardMaterial color={beverage ? '#b45309' : '#0f766e'} />
+        <meshLambertMaterial color={beverage ? '#ece4cc' : CART_ROOF} />
       </mesh>
       {[
         [-0.7, 1.3, -0.9],
@@ -142,7 +141,7 @@ export function GolfCartModel({ beverage = false }: { beverage?: boolean }) {
       ].map((p, i) => (
         <mesh key={i} position={p as [number, number, number]}>
           <cylinderGeometry args={[0.04, 0.04, 1.1, 6]} />
-          <meshStandardMaterial color="#94a3b8" metalness={0.5} />
+          <meshLambertMaterial color="#8d9296" />
         </mesh>
       ))}
       {[
@@ -153,18 +152,18 @@ export function GolfCartModel({ beverage = false }: { beverage?: boolean }) {
       ].map((p, i) => (
         <mesh key={`w${i}`} position={p as [number, number, number]} rotation={[0, 0, Math.PI / 2]} castShadow>
           <cylinderGeometry args={[0.28, 0.28, 0.18, 12]} />
-          <meshStandardMaterial color="#111827" />
+          <meshLambertMaterial color="#1c1d1c" />
         </mesh>
       ))}
       {beverage ? (
         <mesh position={[0, 1.05, -0.95]} castShadow>
           <boxGeometry args={[1.1, 0.7, 0.55]} />
-          <meshStandardMaterial color="#fef3c7" />
+          <meshLambertMaterial color="#ece4cc" />
         </mesh>
       ) : (
         <mesh position={[0.45, 1.15, -0.95]} castShadow>
           <boxGeometry args={[0.35, 0.7, 0.45]} />
-          <meshStandardMaterial color="#334155" />
+          <meshLambertMaterial color="#3d4146" />
         </mesh>
       )}
     </group>
@@ -175,7 +174,7 @@ export function GolfBallMesh() {
   return (
     <mesh castShadow>
       <sphereGeometry args={[0.07, 12, 10]} />
-      <meshStandardMaterial color="#f8fafc" roughness={0.35} />
+      <meshLambertMaterial color="#f2f0ea" />
     </mesh>
   )
 }

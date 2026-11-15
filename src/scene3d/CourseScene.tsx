@@ -1,5 +1,6 @@
 import { Suspense, useEffect, useMemo, useRef } from 'react'
 import { Canvas, useThree } from '@react-three/fiber'
+import * as THREE from 'three'
 import { MapControls, PerspectiveCamera } from '@react-three/drei'
 import type { MapControls as MapControlsImpl } from 'three-stdlib'
 import type { Hole } from '../game/types'
@@ -9,6 +10,7 @@ import { beverageCartsReady, type StaffRoster } from '../game/staff'
 import { mapToWorld } from './coords'
 import { ClaimPlot, HoleMesh } from './HoleMesh'
 import { ParkEnvironment } from './ParkEnvironment'
+import { PaintedLook } from './PaintedLook'
 import { HolePlayGroup, PlazaWalkers, RoamingCart } from './PlayAgents'
 
 function FocusRig({ x, z }: { x: number; z: number }) {
@@ -18,11 +20,12 @@ function FocusRig({ x, z }: { x: number; z: number }) {
   useEffect(() => {
     if (!controls) return
     controls.target.set(x, 0, z)
+    // High aerial vantage, looking steeply down like the painted course study
     if (!ready.current) {
-      cam.position.set(x + 28, 52, z + 48)
+      cam.position.set(x + 8, 58, z + 30)
       ready.current = true
     } else {
-      cam.position.set(x + 24, 46, z + 40)
+      cam.position.set(x + 7, 52, z + 27)
     }
     controls.update()
   }, [x, z, controls, cam])
@@ -56,6 +59,11 @@ export function CourseScene({
   const target = nextBuildTarget(count)
   const cost = nextHoleCost(count)
   const buildPos = target ? holeMapPosition(target.courseId, target.number) : null
+  const reserved = useMemo(
+    () => (buildPos ? [mapToWorld(buildPos.x, buildPos.y)] : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [buildPos?.x, buildPos?.y],
+  )
 
   return (
     <Canvas
@@ -64,13 +72,15 @@ export function CourseScene({
       dpr={[1, 1.75]}
       gl={{ antialias: true, powerPreference: 'high-performance' }}
       onCreated={({ gl }) => {
-        gl.setClearColor('#87c6ef')
+        gl.toneMapping = THREE.NeutralToneMapping
+        gl.toneMappingExposure = 1.05
+        gl.shadowMap.type = THREE.PCFSoftShadowMap
       }}
     >
       <PerspectiveCamera
         makeDefault
-        fov={42}
-        position={[focusWorld.x + 28, 52, focusWorld.z + 48]}
+        fov={38}
+        position={[focusWorld.x + 8, 58, focusWorld.z + 30]}
         near={0.5}
         far={600}
       />
@@ -78,16 +88,16 @@ export function CourseScene({
         makeDefault
         enableDamping
         dampingFactor={0.08}
-        maxPolarAngle={Math.PI / 2.15}
-        minPolarAngle={0.35}
-        minDistance={22}
-        maxDistance={180}
+        maxPolarAngle={Math.PI / 2.6}
+        minPolarAngle={0.12}
+        minDistance={24}
+        maxDistance={190}
         target={[focusWorld.x, 0, focusWorld.z]}
       />
       <FocusRig x={focusWorld.x} z={focusWorld.z} />
 
       <Suspense fallback={null}>
-        <ParkEnvironment cartCount={carts} />
+        <ParkEnvironment cartCount={carts} holes={holes} reserved={reserved} />
 
         {holes.map((hole) => (
           <HoleMesh key={hole.id} hole={hole} onSelect={onOpenHole} />
@@ -124,6 +134,8 @@ export function CourseScene({
             <RoamingCart key={`bev-${i}`} index={i + 5} beverage />
           ))}
       </Suspense>
+
+      <PaintedLook />
     </Canvas>
   )
 }

@@ -5,7 +5,7 @@ import type { Hole } from '../game/types'
 import { TERRAIN_FROM_INDEX } from '../game/types'
 import { ratingLabel } from '../game/rating'
 import { ELEV_SCALE, HOLE_MESH_D, HOLE_MESH_W, mapToWorld } from './coords'
-import { terrainColor } from './terrainColors'
+import { COLLAR_RGB, MEADOW_RGB, mottle, terrainColor } from './terrainColors'
 
 function stageCopy(hole: Hole): string {
   if (hole.kind === 'range') {
@@ -24,10 +24,12 @@ export function HoleMesh({
   hole,
   selected,
   onSelect,
+  hideLabel = false,
 }: {
   hole: Hole
   selected?: boolean
   onSelect: (id: number) => void
+  hideLabel?: boolean
 }) {
   const { x, z } = mapToWorld(hole.mapX, hole.mapY)
   const mesh = useMemo(() => buildHeightmap(hole), [hole])
@@ -50,32 +52,30 @@ export function HoleMesh({
           document.body.style.cursor = 'auto'
         }}
       >
-        <meshStandardMaterial vertexColors roughness={0.92} metalness={0.02} />
+        <meshLambertMaterial vertexColors />
       </mesh>
 
-      {/* Soft rim so parcels read as playable plots */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.04, 0]} receiveShadow>
-        <ringGeometry args={[Math.max(HOLE_MESH_W, HOLE_MESH_D) * 0.52, Math.max(HOLE_MESH_W, HOLE_MESH_D) * 0.56, 48]} />
-        <meshStandardMaterial
-          color={selected ? '#f59e0b' : hole.kind === 'range' ? '#fbbf24' : '#0f766e'}
-          transparent
-          opacity={selected ? 0.55 : 0.28}
-          roughness={1}
-        />
-      </mesh>
+      {selected && (
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.04, 0]}>
+          <ringGeometry args={[Math.max(HOLE_MESH_W, HOLE_MESH_D) * 0.52, Math.max(HOLE_MESH_W, HOLE_MESH_D) * 0.55, 48]} />
+          <meshBasicMaterial color="#efe6cf" transparent opacity={0.5} />
+        </mesh>
+      )}
 
       {hole.buildStage === 'open' || hole.kind === 'range' ? (
         <Flag local={mesh.pinLocal} />
       ) : null}
 
-      <Html position={[0, 2.4, HOLE_MESH_D * 0.55]} center distanceFactor={48} style={{ pointerEvents: 'none' }}>
-        <div className="label3d">
-          <strong>
-            {hole.kind === 'range' ? hole.name : `#${hole.number} · Par ${hole.par}`}
-          </strong>
-          <span>{stageCopy(hole)}</span>
-        </div>
-      </Html>
+      {!hideLabel && (
+        <Html position={[0, 2.4, HOLE_MESH_D * 0.55]} center distanceFactor={48} style={{ pointerEvents: 'none' }}>
+          <div className="label3d">
+            <strong>
+              {hole.kind === 'range' ? hole.name : `#${hole.number} · Par ${hole.par}`}
+            </strong>
+            <span>{stageCopy(hole)}</span>
+          </div>
+        </Html>
+      )}
     </group>
   )
 }
@@ -83,28 +83,39 @@ export function HoleMesh({
 function Flag({ local }: { local: { x: number; y: number; z: number } }) {
   return (
     <group position={[local.x, local.y, local.z]}>
-      <mesh position={[0, 1.1, 0]} castShadow>
-        <cylinderGeometry args={[0.04, 0.05, 2.2, 6]} />
-        <meshStandardMaterial color="#f8fafc" roughness={0.4} />
+      <mesh position={[0, 1.2, 0]} castShadow>
+        <cylinderGeometry args={[0.035, 0.045, 2.4, 6]} />
+        <meshLambertMaterial color="#ece9e1" />
       </mesh>
-      <mesh position={[0.35, 1.85, 0]} castShadow>
-        <boxGeometry args={[0.7, 0.38, 0.04]} />
-        <meshStandardMaterial color="#dc2626" roughness={0.55} />
+      <mesh position={[0.32, 2.12, 0]} rotation={[0, 0.25, 0]} castShadow>
+        <boxGeometry args={[0.62, 0.36, 0.03]} />
+        <meshLambertMaterial color="#b8352c" />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
-        <circleGeometry args={[0.35, 16]} />
-        <meshStandardMaterial color="#1e293b" roughness={1} />
+        <circleGeometry args={[0.22, 14]} />
+        <meshBasicMaterial color="#1b2119" />
       </mesh>
     </group>
   )
 }
 
-function buildHeightmap(hole: Hole) {
-  const step = hole.width > 60 ? 2 : 1
+export function buildHeightmap(
+  hole: Hole,
+  opts: { step?: number; feather?: boolean; worldX?: number; worldZ?: number } = {},
+) {
+  const step = opts.step ?? (hole.width > 60 ? 2 : 1)
+  const doFeather = opts.feather ?? true
   const cols = Math.floor((hole.width - 1) / step) + 1
   const rows = Math.floor((hole.height - 1) / step) + 1
   const sx = HOLE_MESH_W / (hole.width - 1)
   const sz = HOLE_MESH_D / (hole.height - 1)
+  const origin = opts.worldX !== undefined
+    ? { x: opts.worldX, z: opts.worldZ ?? 0 }
+    : mapToWorld(hole.mapX, hole.mapY)
+  const W = hole.width
+  const H = hole.height
+  const terrAt = (x: number, y: number) =>
+    TERRAIN_FROM_INDEX[hole.terrain[Math.max(0, Math.min(H - 1, y)) * W + Math.max(0, Math.min(W - 1, x))]]
 
   const positions: number[] = []
   const colors: number[] = []
@@ -112,23 +123,52 @@ function buildHeightmap(hole: Hole) {
 
   for (let ry = 0; ry < rows; ry++) {
     for (let cx = 0; cx < cols; cx++) {
-      const gx = Math.min(hole.width - 1, cx * step)
-      const gy = Math.min(hole.height - 1, ry * step)
-      const i = gy * hole.width + gx
+      const gx = Math.min(W - 1, cx * step)
+      const gy = Math.min(H - 1, ry * step)
+      const i = gy * W + gx
       const elev = hole.elevation[i]
       const t = hole.terrain[i]
-      const isWater = TERRAIN_FROM_INDEX[t] === 'water'
-      const y = isWater ? elev * ELEV_SCALE * 0.35 - 0.15 : elev * ELEV_SCALE
-      const lx = (gx - (hole.width - 1) / 2) * sx
-      const lz = (gy - (hole.height - 1) / 2) * sz
+      const kind = TERRAIN_FROM_INDEX[t]
+      const isWater = kind === 'water'
+      let y = isWater ? elev * ELEV_SCALE * 0.35 - 0.15 : elev * ELEV_SCALE
+      // Feather the parcel edge down into the surrounding meadow
+      const edge = Math.min(gx, gy, W - 1 - gx, H - 1 - gy)
+      const featherCells = Math.max(3, Math.min(W, H) * 0.14)
+      const feather = doFeather ? Math.min(1, edge / featherCells) : 1
+      y = -0.25 + (y + 0.25) * (feather * feather * (3 - 2 * feather))
+      const lx = (gx - (W - 1) / 2) * sx
+      const lz = (gy - (H - 1) / 2) * sz
       positions.push(lx, y, lz)
 
-      // Simple slope shade
-      const eL = hole.elevation[gy * hole.width + Math.max(0, gx - 1)]
-      const eR = hole.elevation[gy * hole.width + Math.min(hole.width - 1, gx + 1)]
-      const shade = 0.85 + (eL - eR) * 0.45
-      const [r, g, b] = terrainColor(t, Math.max(0.55, Math.min(1.15, shade)))
-      colors.push(r, g, b)
+      // Soft slope light — catches the low sun on the far side of rises
+      const eL = hole.elevation[gy * W + Math.max(0, gx - 1)]
+      const eR = hole.elevation[gy * W + Math.min(W - 1, gx + 1)]
+      const eU = hole.elevation[Math.max(0, gy - 1) * W + gx]
+      const eD = hole.elevation[Math.min(H - 1, gy + 1) * W + gx]
+      const shade = Math.max(0.7, Math.min(1.18, 0.96 + (eL - eR) * 0.5 + (eU - eD) * 0.4))
+
+      let base: [number, number, number]
+      if (kind !== 'green' && kind !== 'water' && kind !== 'bunker' && hasNeighbor(terrAt, gx, gy, 'green', 1)) {
+        base = COLLAR_RGB
+      } else if (kind === 'rough' && hasNeighbor(terrAt, gx, gy, 'bunker', 1)) {
+        base = [COLLAR_RGB[0] * 1.1, COLLAR_RGB[1] * 1.1, COLLAR_RGB[2] * 1.1]
+      } else {
+        base = terrainColor(t, 1)
+      }
+      // At the feathered rim, ease the colour back to plain meadow
+      if (feather < 1 && !isWater) {
+        const k = 1 - feather
+        base = [
+          base[0] + (MEADOW_RGB[0] - base[0]) * k,
+          base[1] + (MEADOW_RGB[1] - base[1]) * k,
+          base[2] + (MEADOW_RGB[2] - base[2]) * k,
+        ]
+      }
+      const amt = kind === 'bunker' ? 0.25 : kind === 'green' ? 0.55 : kind === 'water' ? 0.4 : 1
+      const [r, g, b] = mottle(base, origin.x + lx, origin.z + lz, amt)
+      // Greens glow a little, like the pale highlight in the painting
+      const glow = kind === 'green' ? 1.04 : 1
+      colors.push(r * shade * glow, g * shade * glow, b * shade * glow)
     }
   }
 
@@ -161,6 +201,21 @@ function buildHeightmap(hole: Hole) {
   }
 
   return { geo, pinLocal, teeLocal }
+}
+
+function hasNeighbor(
+  terrAt: (x: number, y: number) => string | undefined,
+  x: number,
+  y: number,
+  kind: string,
+  r: number,
+) {
+  for (let oy = -r; oy <= r; oy++) {
+    for (let ox = -r; ox <= r; ox++) {
+      if ((ox || oy) && terrAt(x + ox, y + oy) === kind) return true
+    }
+  }
+  return false
 }
 
 export function sampleHoleSurface(
@@ -210,12 +265,30 @@ export function ClaimPlot({
         }}
       >
         <planeGeometry args={[14, 10]} />
-        <meshStandardMaterial color="#f59e0b" transparent opacity={0.22} roughness={1} />
+        <meshBasicMaterial color="#e8dcb4" transparent opacity={0.16} depthWrite={false} />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
-        <ringGeometry args={[6.2, 6.6, 32]} />
-        <meshStandardMaterial color="#fbbf24" transparent opacity={0.7} />
+        <ringGeometry args={[6.2, 6.45, 40]} />
+        <meshBasicMaterial color="#efe6cf" transparent opacity={0.55} depthWrite={false} />
       </mesh>
+      {/* Survey stakes with red ribbons at each corner */}
+      {[
+        [-7, -5],
+        [7, -5],
+        [-7, 5],
+        [7, 5],
+      ].map(([sx, sz]) => (
+        <group key={`${sx},${sz}`} position={[sx, 0, sz]}>
+          <mesh position={[0, 0.5, 0]} castShadow>
+            <cylinderGeometry args={[0.05, 0.06, 1, 5]} />
+            <meshLambertMaterial color="#d9cfb8" />
+          </mesh>
+          <mesh position={[0.12, 0.92, 0]} castShadow>
+            <boxGeometry args={[0.24, 0.1, 0.02]} />
+            <meshLambertMaterial color="#b8352c" />
+          </mesh>
+        </group>
+      ))}
       <Html center distanceFactor={42} position={[0, 1.8, 0]} style={{ pointerEvents: 'none' }}>
         <div className="label3d label3d--claim">
           <span>New plot</span>

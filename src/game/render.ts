@@ -1,15 +1,15 @@
 import { shadeAt } from './terrain'
 import { TERRAIN_FROM_INDEX, type Hole, type Point } from './types'
 
-/** Lush daytime palette — closer to a bright park-builder look */
+/** Painted-course palette — muted sage, olive, chalk and slate (matches the 3D view) */
 const COLORS: Record<string, [number, number, number]> = {
-  rough: [74, 140, 72],
-  fairway: [110, 186, 92],
-  green: [148, 214, 118],
-  bunker: [228, 204, 148],
-  water: [56, 152, 210],
-  tee: [96, 168, 88],
-  path: [186, 160, 118],
+  rough: [108, 136, 78],
+  fairway: [124, 152, 88],
+  green: [182, 200, 154],
+  bunker: [238, 235, 222],
+  water: [44, 70, 96],
+  tee: [134, 160, 98],
+  path: [206, 202, 190],
 }
 
 function shadeRgb(rgb: [number, number, number], shade: number): string {
@@ -36,8 +36,8 @@ export function drawHole(
 
   // Soft daylight wash
   const grad = ctx.createLinearGradient(0, 0, 0, h * cell)
-  grad.addColorStop(0, '#b8d8a8')
-  grad.addColorStop(1, '#6aaa68')
+  grad.addColorStop(0, '#8fa07a')
+  grad.addColorStop(1, '#55703d')
   ctx.fillStyle = grad
   ctx.fillRect(0, 0, w * cell, h * cell)
 
@@ -55,7 +55,9 @@ export function drawHole(
           (0.72 + depth * 0.35) * rip * (0.94 + shade * 0.08),
         )
       } else {
-        ctx.fillStyle = shadeRgb(COLORS[t], shade * (0.86 + lift * 0.28))
+        // Loose painterly mottling so flat areas read as brushwork, not pixels
+        const dab = 0.95 + 0.1 * (Math.sin(x * 0.37 + y * 0.21) * Math.cos(y * 0.29 - x * 0.13))
+        ctx.fillStyle = shadeRgb(COLORS[t], shade * (0.86 + lift * 0.28) * dab)
       }
       ctx.fillRect(x * cell, y * cell, cell + 0.7, cell + 0.7)
     }
@@ -68,7 +70,7 @@ export function drawHole(
     for (let x = 1; x < w - 1; x++) {
       if (TERRAIN_FROM_INDEX[hole.terrain[y * w + x]] !== 'water') continue
       if ((x + y) % 5 !== 0) continue
-      ctx.fillStyle = '#e0f2fe'
+      ctx.fillStyle = '#c9d3d6'
       ctx.fillRect(x * cell + cell * 0.2, y * cell + cell * 0.15, cell * 0.45, cell * 0.25)
     }
   }
@@ -220,7 +222,7 @@ function drawFlag(ctx: CanvasRenderingContext2D, x: number, y: number, cell: num
   ctx.lineTo(px + cell * 2.2, py - cell * 2.5)
   ctx.lineTo(px, py - cell * 1.8)
   ctx.closePath()
-  ctx.fillStyle = '#e8913a'
+  ctx.fillStyle = '#b0392e'
   ctx.fill()
 }
 

@@ -1,6 +1,6 @@
 # Rolling Greens
 
-Build a golf resort in a **3D realist course view**: claim raw land, terraform it, and construct each hole by hand — while golfers walk, drive carts, and actually play the holes around you.
+Build a golf resort that looks like a **painting come to life** — a high aerial view of the grounds rendered as oil on canvas (Kuwahara brushwork, linen weave, raking low-sun shadows through dark spruce): claim raw land, terraform it, and construct each hole by hand — while golfers walk, drive carts, and actually play the holes around you.
 
 ## Play
 

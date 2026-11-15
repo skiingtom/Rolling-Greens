@@ -6,8 +6,11 @@ import type { Hole, Point } from '../game/types'
 import type { BallState } from '../game/physics'
 import { ELEV_SCALE, HOLE_MESH_D, HOLE_MESH_W } from './coords'
 import { GolfCartModel, GolferFigure } from './figures'
-import { TERRAIN_FROM_INDEX } from '../game/types'
-import { terrainColor } from './terrainColors'
+import { Conifers, type ConiferSpec } from './Conifers'
+import { buildHeightmap } from './HoleMesh'
+import { PaintedLighting } from './ParkEnvironment'
+import { PaintedLook } from './PaintedLook'
+import { HAZE, MEADOW_RGB, fbm, mottle } from './terrainColors'
 
 function cellToPos(hole: Hole, cx: number, cy: number, lift = 0.1) {
   const sx = HOLE_MESH_W / (hole.width - 1)
@@ -22,50 +25,6 @@ function cellToPos(hole: Hole, cx: number, cy: number, lift = 0.1) {
     elev * ELEV_SCALE + lift,
     (gy - (hole.height - 1) / 2) * sz,
   )
-}
-
-function buildGeo(hole: Hole) {
-  const step = 1
-  const cols = Math.floor((hole.width - 1) / step) + 1
-  const rows = Math.floor((hole.height - 1) / step) + 1
-  const sx = HOLE_MESH_W / (hole.width - 1)
-  const sz = HOLE_MESH_D / (hole.height - 1)
-  const positions: number[] = []
-  const colors: number[] = []
-  const indices: number[] = []
-
-  for (let ry = 0; ry < rows; ry++) {
-    for (let cx = 0; cx < cols; cx++) {
-      const gx = Math.min(hole.width - 1, cx * step)
-      const gy = Math.min(hole.height - 1, ry * step)
-      const i = gy * hole.width + gx
-      const elev = hole.elevation[i]
-      const t = hole.terrain[i]
-      const isWater = TERRAIN_FROM_INDEX[t] === 'water'
-      const y = isWater ? elev * ELEV_SCALE * 0.35 - 0.12 : elev * ELEV_SCALE
-      positions.push((gx - (hole.width - 1) / 2) * sx, y, (gy - (hole.height - 1) / 2) * sz)
-      const eL = hole.elevation[gy * hole.width + Math.max(0, gx - 1)]
-      const eR = hole.elevation[gy * hole.width + Math.min(hole.width - 1, gx + 1)]
-      const shade = 0.85 + (eL - eR) * 0.4
-      const [r, g, b] = terrainColor(t, Math.max(0.55, Math.min(1.15, shade)))
-      colors.push(r, g, b)
-    }
-  }
-  for (let ry = 0; ry < rows - 1; ry++) {
-    for (let cx = 0; cx < cols - 1; cx++) {
-      const a = ry * cols + cx
-      const b = a + 1
-      const c = a + cols
-      const d = c + 1
-      indices.push(a, c, b, b, c, d)
-    }
-  }
-  const geo = new THREE.BufferGeometry()
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
-  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3))
-  geo.setIndex(indices)
-  geo.computeVertexNormals()
-  return geo
 }
 
 function Playfield({
@@ -83,7 +42,9 @@ function Playfield({
   draggingRef: React.MutableRefObject<boolean>
   useCart: boolean
 }) {
-  const geo = useMemo(() => buildGeo(hole), [hole])
+  const geo = useMemo(() => buildHeightmap(hole, { step: 1, feather: false, worldX: 0, worldZ: 0 }).geo, [hole])
+  const surround = useMemo(() => surroundingTrees(hole), [hole])
+  const ground = useMemo(() => surroundGround(), [])
   const ballMesh = useRef<THREE.Mesh>(null)
   const golfer = useRef<THREE.Group>(null)
   const cart = useRef<THREE.Group>(null)
@@ -169,30 +130,35 @@ function Playfield({
   return (
     <group>
       <mesh geometry={geo} receiveShadow castShadow>
-        <meshStandardMaterial vertexColors roughness={0.9} />
+        <meshLambertMaterial vertexColors />
       </mesh>
+      <Conifers trees={surround} />
 
       {/* Flag */}
       <group position={[pin.x, pin.y, pin.z]}>
-        <mesh position={[0, 1.1, 0]}>
+        <mesh position={[0, 1.1, 0]} castShadow>
           <cylinderGeometry args={[0.04, 0.05, 2.2, 6]} />
-          <meshStandardMaterial color="#f8fafc" />
+          <meshLambertMaterial color="#ece9e1" />
         </mesh>
-        <mesh position={[0.35, 1.85, 0]}>
+        <mesh position={[0.35, 1.85, 0]} castShadow>
           <boxGeometry args={[0.7, 0.38, 0.04]} />
-          <meshStandardMaterial color="#dc2626" />
+          <meshLambertMaterial color="#b8352c" />
+        </mesh>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
+          <circleGeometry args={[0.16, 14]} />
+          <meshBasicMaterial color="#1b2119" />
         </mesh>
       </group>
 
       {/* Tee marker */}
       <mesh position={[tee.x, tee.y + 0.05, tee.z]}>
         <cylinderGeometry args={[0.2, 0.2, 0.08, 12]} />
-        <meshStandardMaterial color="#86efac" />
+        <meshLambertMaterial color="#ece9e1" />
       </mesh>
 
       <mesh ref={ballMesh} castShadow>
         <sphereGeometry args={[0.1, 14, 12]} />
-        <meshStandardMaterial color="#f8fafc" roughness={0.25} />
+        <meshLambertMaterial color="#fbfaf6" emissive="#2a2a26" />
       </mesh>
 
       <group ref={golfer}>
@@ -204,25 +170,16 @@ function Playfield({
 
       {/* @ts-expect-error line is valid R3F element */}
       <line ref={aimLine} geometry={aimGeo}>
-        <lineBasicMaterial color="#fef3c7" linewidth={2} />
+        <lineBasicMaterial color="#f3eee2" linewidth={2} />
       </line>
       {/* @ts-expect-error line is valid R3F element */}
       <line ref={trailLine} geometry={trailGeo}>
-        <lineBasicMaterial color="#e2e8f0" transparent opacity={0.55} />
+        <lineBasicMaterial color="#f3eee2" transparent opacity={0.6} />
       </line>
 
-      <ambientLight intensity={0.55} />
-      <hemisphereLight args={['#dbeafe', '#3f6212', 0.5]} />
-      <directionalLight
-        castShadow
-        intensity={1.3}
-        position={[20, 30, 12]}
-        shadow-mapSize-width={1024}
-        shadow-mapSize-height={1024}
-      />
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.2, 0]} receiveShadow>
-        <planeGeometry args={[80, 60]} />
-        <meshStandardMaterial color="#3d7a38" roughness={1} />
+      <PaintedLighting extent={45} mapSize={2048} />
+      <mesh geometry={ground} receiveShadow>
+        <meshLambertMaterial vertexColors />
       </mesh>
     </group>
   )
@@ -259,9 +216,16 @@ export function PlaytestScene({
       shadows
       dpr={[1, 1.75]}
       onPointerMissed={() => {}}
-      onCreated={({ gl }) => gl.setClearColor('#7ebce8')}
+      onCreated={({ gl }) => {
+        gl.toneMapping = THREE.NeutralToneMapping
+        gl.toneMappingExposure = 1.05
+        gl.shadowMap.type = THREE.PCFSoftShadowMap
+      }}
     >
-      <PerspectiveCamera makeDefault fov={40} position={[mid.x + 8, 14, mid.z + 16]} />
+      <color attach="background" args={[HAZE]} />
+      <fog attach="fog" args={[HAZE, 60, 140]} />
+      <PaintedLook spread={1.6} />
+      <PerspectiveCamera makeDefault fov={40} position={[mid.x + 5, 20, mid.z + 15]} />
       <OrbitControls
         target={[mid.x, 1, mid.z]}
         maxPolarAngle={Math.PI / 2.1}
@@ -326,4 +290,47 @@ function worldToCell(hole: Hole, point: THREE.Vector3): Point {
     x: point.x / sx + (hole.width - 1) / 2,
     y: point.z / sz + (hole.height - 1) / 2,
   }
+}
+
+/** Ring of spruce around the playtest hole so it sits in a clearing, like the painting */
+function surroundingTrees(hole: Hole): ConiferSpec[] {
+  const out: ConiferSpec[] = []
+  let s = hole.id * 9301 + 49297
+  const rand = () => {
+    s = (s * 16807) % 2147483647
+    return (s - 1) / 2147483646
+  }
+  const hw = HOLE_MESH_W / 2
+  const hd = HOLE_MESH_D / 2
+  for (let i = 0; i < 140; i++) {
+    const x = (rand() - 0.5) * (HOLE_MESH_W + 44)
+    const z = (rand() - 0.5) * (HOLE_MESH_D + 40)
+    const dx = Math.max(0, Math.abs(x) - hw)
+    const dz = Math.max(0, Math.abs(z) - hd)
+    const out_ = Math.hypot(dx, dz)
+    if (out_ < 1.5) continue
+    // Thicker stands further out
+    if (out_ < 5 && rand() > 0.45) continue
+    out.push({ x, z, scale: 0.6 + rand() * 1.1, variant: Math.floor(rand() * 5) })
+  }
+  return out
+}
+
+function surroundGround() {
+  const g = new THREE.PlaneGeometry(140, 110, 70, 55)
+  g.rotateX(-Math.PI / 2)
+  const pos = g.getAttribute('position')
+  const colors = new Float32Array(pos.count * 3)
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i)
+    const z = pos.getZ(i)
+    pos.setY(i, -0.2 - fbm(x * 0.04, z * 0.04, 3) * 0.6)
+    const [r, gg, b] = mottle(MEADOW_RGB, x, z, 1.6)
+    colors[i * 3] = r
+    colors[i * 3 + 1] = gg
+    colors[i * 3 + 2] = b
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+  g.computeVertexNormals()
+  return g
 }

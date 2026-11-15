@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { useGame } from '../game/store'
+import { LandingBackdrop } from '../scene3d/LandingBackdrop'
 
 export function Landing() {
   const startClub = useGame((s) => s.startClub)
@@ -16,9 +17,9 @@ export function Landing() {
 
   return (
     <section className="landing">
-      <div className="landing__sky" aria-hidden />
-      <div className="landing__fairway" aria-hidden />
-      <div className="landing__flag" aria-hidden />
+      <div className="landing__backdrop" aria-hidden>
+        <LandingBackdrop />
+      </div>
 
       <div className="landing__content">
         <h1 className="landing__brand">Rolling Greens</h1>
