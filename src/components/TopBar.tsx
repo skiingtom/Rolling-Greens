@@ -21,8 +21,8 @@ export function TopBar() {
   }, [toast])
 
   function onCollect() {
-    const { income, week: nextWeek } = advanceWeek()
-    setToast(`Week ${nextWeek} · +$${income.toLocaleString()} collected`)
+    const { net, week: nextWeek, summary } = advanceWeek()
+    setToast(`Week ${nextWeek} · net ${net >= 0 ? '+' : ''}$${net.toLocaleString()} · ${summary}`)
   }
 
   return (

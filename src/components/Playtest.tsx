@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { aimPoint, createBall, stepBall, strike, type BallState } from '../game/physics'
 import { drawHole } from '../game/render'
+import { CADDIE_FEE, CART_RENTAL_FEE, beverageCartsReady } from '../game/staff'
 import { useGame } from '../game/store'
 import type { Point } from '../game/types'
 
@@ -8,6 +9,13 @@ export function Playtest() {
   const hole = useGame((s) => s.getActiveHole())
   const setScreen = useGame((s) => s.setScreen)
   const recordPlay = useGame((s) => s.recordPlay)
+  const caddiesAvailable = useGame((s) => s.caddiesAvailable)
+  const cartsReady = useGame((s) => s.cartsReady)
+  const chargeCaddieFee = useGame((s) => s.chargeCaddieFee)
+  const chargeCartRental = useGame((s) => s.chargeCartRental)
+  const staff = useGame((s) => s.staff)
+  const carts = useGame((s) => s.carts)
+  const drinksOn = beverageCartsReady(staff, carts)
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -25,7 +33,14 @@ export function Playtest() {
     'Drag from the ball to aim and set power.',
   )
   const [finished, setFinished] = useState(false)
+  const [useCaddie, setUseCaddie] = useState(false)
+  const [useCart, setUseCart] = useState(false)
+  const [extrasNote, setExtrasNote] = useState<string | null>(null)
+  const caddieCharged = useRef(false)
+  const cartCharged = useRef(false)
+  const useCaddieRef = useRef(false)
   const [, bump] = useState(0)
+  useCaddieRef.current = useCaddie
 
   const resetBall = useCallback(() => {
     if (!hole) return
@@ -33,8 +48,11 @@ export function Playtest() {
     trailRef.current = []
     aimRef.current = null
     strokesRef.current = 0
+    caddieCharged.current = false
+    cartCharged.current = false
     setStrokes(0)
     setFinished(false)
+    setExtrasNote(null)
     setStatus(
       hole.kind === 'range'
         ? 'Pull back from the bay and aim for the distance flag.'
@@ -109,7 +127,7 @@ export function Playtest() {
                 ? `Stuck the target in ${s} shot${s === 1 ? '' : 's'}.`
                 : `In the cup — ${s} stroke${s === 1 ? '' : 's'} (par ${hole.par}).`,
             )
-            recordPlay(s)
+            recordPlay(s, useCaddieRef.current && caddieCharged.current)
           } else if (next.water) {
             setStatus('Wet. Ball returned to tee — stroke penalty.')
             ballRef.current = createBall(hole)
@@ -127,6 +145,50 @@ export function Playtest() {
     rafRef.current = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(rafRef.current)
   }, [hole, redraw, recordPlay])
+
+  function toggleCaddie() {
+    if (!caddiesAvailable()) {
+      setExtrasNote('Hire a caddie from Staff first.')
+      return
+    }
+    if (useCaddie) {
+      setUseCaddie(false)
+      setExtrasNote('Walking without a caddie.')
+      return
+    }
+    if (!caddieCharged.current) {
+      const result = chargeCaddieFee()
+      if (!result.ok) {
+        setExtrasNote(result.message)
+        return
+      }
+      caddieCharged.current = true
+      setExtrasNote(result.message)
+    }
+    setUseCaddie(true)
+  }
+
+  function toggleCart() {
+    if (!cartsReady()) {
+      setExtrasNote('Buy a cart for the fleet first (Staff).')
+      return
+    }
+    if (useCart) {
+      setUseCart(false)
+      setExtrasNote('Walking the hole.')
+      return
+    }
+    if (!cartCharged.current) {
+      const result = chargeCartRental()
+      if (!result.ok) {
+        setExtrasNote(result.message)
+        return
+      }
+      cartCharged.current = true
+      setExtrasNote(result.message)
+    }
+    setUseCart(true)
+  }
 
   useEffect(() => {
     const wrap = wrapRef.current
@@ -258,6 +320,33 @@ export function Playtest() {
       </div>
 
       <p className="playtest__help">{status}</p>
+
+      {!isRange && (
+        <div className="playtest__extras">
+          <button
+            type="button"
+            className={`tool-chip${useCaddie ? ' tool-chip--active' : ''}`}
+            onClick={toggleCaddie}
+            disabled={!caddiesAvailable() && !useCaddie}
+          >
+            Caddie · ${CADDIE_FEE}
+            {!caddiesAvailable() ? ' (none staffed)' : ''}
+          </button>
+          <button
+            type="button"
+            className={`tool-chip${useCart ? ' tool-chip--active' : ''}`}
+            onClick={toggleCart}
+            disabled={!cartsReady() && !useCart}
+          >
+            Rent cart · ${CART_RENTAL_FEE}
+            {!cartsReady() ? ' (no fleet)' : ''}
+          </button>
+          {drinksOn && (
+            <span className="staff-pill staff-pill--ok">Beverage cart on the course</span>
+          )}
+          {extrasNote && <span className="playtest__extra-note">{extrasNote}</span>}
+        </div>
+      )}
 
       {finished && (
         <div className="playtest__result">

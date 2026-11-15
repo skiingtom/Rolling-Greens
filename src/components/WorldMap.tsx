@@ -24,6 +24,8 @@ import {
   parkTrees,
   phaseCopy,
 } from '../game/world'
+import { StaffPanel } from './StaffPanel'
+import { beverageCartsReady, totalStaff } from '../game/staff'
 
 function ParcelThumb({ hole }: { hole: Hole }) {
   const [src, setSrc] = useState('')
@@ -77,6 +79,8 @@ export function WorldMap() {
   const expandRange = useGame((s) => s.expandRange)
   const advanceWeek = useGame((s) => s.advanceWeek)
   const setMapFocus = useGame((s) => s.setMapFocus)
+  const staff = useGame((s) => s.staff)
+  const carts = useGame((s) => s.carts)
 
   const viewportRef = useRef<HTMLDivElement>(null)
   const dragging = useRef(false)
@@ -85,6 +89,9 @@ export function WorldMap() {
   const [toast, setToast] = useState<string | null>(null)
   const [zoom, setZoom] = useState(1.05)
   const [viewSize, setViewSize] = useState({ w: 1200, h: 600 })
+  const [staffOpen, setStaffOpen] = useState(false)
+  const crew = totalStaff(staff)
+  const drinksOn = beverageCartsReady(staff, carts)
 
   const patches = useMemo(() => fieldPatches(7), [])
   const trees = useMemo(() => parkTrees(5), [])
@@ -165,8 +172,10 @@ export function WorldMap() {
   }
 
   function onCollectFees() {
-    const { income, week: nextWeek } = advanceWeek()
-    setToast(`Week ${nextWeek} · +$${income.toLocaleString()} collected`)
+    const { net, week: nextWeek, summary } = advanceWeek()
+    setToast(
+      `Week ${nextWeek} · net ${net >= 0 ? '+' : ''}$${net.toLocaleString()} · ${summary}`,
+    )
   }
 
   // Strong isometric park-builder camera (Planet Zoo–like tilt)
@@ -283,6 +292,31 @@ export function WorldMap() {
             <div className="world__clubhouse-awning" />
             <div className="world__clubhouse-label">Clubhouse</div>
           </div>
+
+          {carts > 0 && (
+            <div
+              className="world__cart-barn"
+              style={{ left: CLUBHOUSE.x + 150, top: CLUBHOUSE.y + 40 }}
+              title={`${carts} cart${carts === 1 ? '' : 's'} in fleet`}
+            >
+              <span className="world__cart-barn-icon" />
+              <span>Carts · {carts}</span>
+            </div>
+          )}
+
+          {drinksOn &&
+            Array.from({ length: Math.min(3, staff.beverage) }, (_, i) => (
+              <div
+                key={`bev-${i}`}
+                className="world__bev-cart"
+                style={{
+                  left: CLUBHOUSE.x + 220 + i * 90,
+                  top: CLUBHOUSE.y - 80 - i * 40,
+                  animationDelay: `${i * 1.4}s`,
+                }}
+                title="Beverage cart"
+              />
+            ))}
 
           <div className="world__road-sign" style={{ left: CLUBHOUSE.x - 110, top: CLUBHOUSE.y + 130 }}>
             County Rd 7
@@ -423,6 +457,16 @@ export function WorldMap() {
             <span className="zoo-tool__icon zoo-tool__icon--cash" />
             <span>Fees</span>
           </button>
+          <button
+            className="zoo-tool"
+            type="button"
+            data-testid="open-staff"
+            onClick={() => setStaffOpen(true)}
+            title="Hire staff and manage carts"
+          >
+            <span className="zoo-tool__icon zoo-tool__icon--staff" />
+            <span>Staff{crew > 0 ? ` · ${crew}` : ''}</span>
+          </button>
           {target && (
             <button className="zoo-tool zoo-tool--accent" type="button" onClick={claimLand}>
               <span className="zoo-tool__icon zoo-tool__icon--dig" />
@@ -463,11 +507,14 @@ export function WorldMap() {
         </div>
         <p className="world__hint">
           Drag to explore · ${budget.toLocaleString()} · Rep {reputation}
+          {carts > 0 ? ` · ${carts} cart${carts === 1 ? '' : 's'}` : ''}
+          {drinksOn ? ' · Drink cart out' : ''}
           {target ? ` · Next plot $${cost.toLocaleString()}` : ''}
           {rangeSize === 'starter' ? ` · Expand range $${RANGE_UPGRADE_COST.toLocaleString()}` : ''}
         </p>
       </aside>
 
+      <StaffPanel open={staffOpen} onClose={() => setStaffOpen(false)} />
       {toast && <div className="toast">{toast}</div>}
     </main>
   )

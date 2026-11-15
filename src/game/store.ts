@@ -2,6 +2,21 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { prizeForRating, rateHole } from './rating'
 import {
+  CADDIE_FEE,
+  CART_BUY_COST,
+  CART_MAX,
+  CART_RENTAL_FEE,
+  cartsAvailable,
+  emptyRoster,
+  hasAvailableCaddie,
+  normalizeRoster,
+  resolveStaffWeek,
+  sculptDiscount,
+  staffDef,
+  type StaffRole,
+  type StaffRoster,
+} from './staff'
+import {
   createBlankHole,
   createDrivingRange,
   deserializeHole,
@@ -53,6 +68,9 @@ interface GameStore {
   saveVersion: number
   mapFocusX: number
   mapFocusY: number
+  staff: StaffRoster
+  /** Golf carts owned for guest rentals / beverage routes */
+  carts: number
 
   setScreen: (s: Screen) => void
   startClub: (name: string) => void
@@ -67,16 +85,30 @@ interface GameStore {
   placeTee: (x: number, y: number) => void
   placePin: (x: number, y: number) => void
   finalizeHole: () => { rating: number; prize: number } | null
-  recordPlay: (strokes: number) => void
+  recordPlay: (strokes: number, usedCaddie?: boolean) => void
+  hireStaff: (role: StaffRole) => { ok: boolean; message: string }
+  fireStaff: (role: StaffRole) => { ok: boolean; message: string }
+  buyCart: () => { ok: boolean; message: string }
+  sellCart: () => { ok: boolean; message: string }
   buildNextHole: () => { ok: boolean; cost: number; message: string }
   expandRange: () => { ok: boolean; cost: number; message: string }
-  advanceWeek: () => { income: number; week: number }
+  advanceWeek: () => {
+    income: number
+    net: number
+    payroll: number
+    week: number
+    summary: string
+  }
+  chargeCaddieFee: () => { ok: boolean; fee: number; message: string }
+  chargeCartRental: () => { ok: boolean; fee: number; message: string }
   resetClub: () => void
   getActiveHole: () => Hole | null
   courseHoleCount: () => number
+  caddiesAvailable: () => boolean
+  cartsReady: () => boolean
 }
 
-const SAVE_VERSION = 4
+const SAVE_VERSION = 5
 
 function starterProperty(): Hole[] {
   return [createDrivingRange('starter')]
@@ -105,6 +137,8 @@ export const useGame = create<GameStore>()(
       saveVersion: SAVE_VERSION,
       mapFocusX: 1840,
       mapFocusY: 1160,
+      staff: emptyRoster(),
+      carts: 0,
 
       setScreen: (screen) => set({ screen }),
       setMapFocus: (mapFocusX, mapFocusY) => set({ mapFocusX, mapFocusY }),
@@ -123,6 +157,8 @@ export const useGame = create<GameStore>()(
           saveVersion: SAVE_VERSION,
           mapFocusX: 1840,
           mapFocusY: 1160,
+          staff: emptyRoster(),
+          carts: 0,
         }),
 
       openHole: (id) => {
@@ -137,8 +173,6 @@ export const useGame = create<GameStore>()(
           editor: { ...get().editor, tool },
         })
       },
-
-      courseHoleCount: () => get().holes.filter((h) => h.kind === 'hole').length,
 
       setPar: (par) => {
         const { activeHoleId, holes } = get()
@@ -164,8 +198,8 @@ export const useGame = create<GameStore>()(
         set((s) => ({ editor: { ...s.editor, ...partial } })),
 
       applySculpt: (x, y) => {
-        const { activeHoleId, holes, editor, budget } = get()
-        if (activeHoleId === null || budget < SCULPT_COST) return
+        const { activeHoleId, holes, editor, budget, staff } = get()
+        if (activeHoleId === null || budget < 1) return
         const hole = holes.find((h) => h.id === activeHoleId)
         if (!hole) return
         const elevation = new Float32Array(hole.elevation)
@@ -180,7 +214,11 @@ export const useGame = create<GameStore>()(
           hole.height,
         )
         if (!changed) return
-        const cost = Math.min(budget, Math.max(SCULPT_COST, Math.ceil(changed * 0.15)))
+        const raw = Math.max(SCULPT_COST, Math.ceil(changed * 0.15))
+        const cost = Math.min(
+          budget,
+          Math.max(1, Math.ceil(raw * (1 - sculptDiscount(staff)))),
+        )
         set({
           budget: budget - cost,
           holes: holes.map((h) => {
@@ -326,14 +364,15 @@ export const useGame = create<GameStore>()(
         return { rating, prize: Math.round(prize) }
       },
 
-      recordPlay: (strokes) => {
+      recordPlay: (strokes, usedCaddie = false) => {
         const { activeHoleId, holes, reputation } = get()
         if (activeHoleId === null) return
         const hole = holes.find((h) => h.id === activeHoleId)
         if (!hole) return
         const underPar = hole.kind === 'range' ? strokes <= 3 : strokes <= hole.par
+        const bonus = (underPar ? 1 : 0) + (usedCaddie && underPar ? 1 : 0)
         set({
-          reputation: Math.min(100, reputation + (underPar ? 1 : 0)),
+          reputation: Math.min(100, reputation + bonus),
           holes: holes.map((h) => {
             if (h.id !== activeHoleId) return h
             const best =
@@ -341,6 +380,108 @@ export const useGame = create<GameStore>()(
             return { ...h, playCount: h.playCount + 1, bestScore: best }
           }),
         })
+      },
+
+      hireStaff: (role) => {
+        const { staff, budget, holes } = get()
+        const def = staffDef(role)
+        const openHoles = holes.filter((h) => h.kind === 'hole' && h.rating !== null).length
+        if (openHoles < def.unlockHoles) {
+          return {
+            ok: false,
+            message: `${def.label}s unlock after ${def.unlockHoles} open hole${def.unlockHoles === 1 ? '' : 's'}.`,
+          }
+        }
+        if (staff[role] >= def.max) {
+          return { ok: false, message: `${def.label} roster is full (${def.max}).` }
+        }
+        if (budget < def.hireCost) {
+          return {
+            ok: false,
+            message: `Need $${def.hireCost.toLocaleString()} to hire a ${def.label.toLowerCase()}.`,
+          }
+        }
+        if (role === 'beverage' && get().carts < 1) {
+          return {
+            ok: false,
+            message: 'Buy at least one cart before hiring a beverage cart driver.',
+          }
+        }
+        set({
+          budget: budget - def.hireCost,
+          staff: { ...staff, [role]: staff[role] + 1 },
+        })
+        return {
+          ok: true,
+          message: `Hired ${def.label.toLowerCase()} (−$${def.hireCost.toLocaleString()}/hire · $${def.wage}/wk).`,
+        }
+      },
+
+      fireStaff: (role) => {
+        const { staff } = get()
+        if (staff[role] <= 0) {
+          return { ok: false, message: `No ${staffDef(role).label.toLowerCase()}s on payroll.` }
+        }
+        set({ staff: { ...staff, [role]: staff[role] - 1 } })
+        return { ok: true, message: `Let a ${staffDef(role).label.toLowerCase()} go.` }
+      },
+
+      buyCart: () => {
+        const { carts, budget } = get()
+        if (carts >= CART_MAX) {
+          return { ok: false, message: `Cart barn full (${CART_MAX}).` }
+        }
+        if (budget < CART_BUY_COST) {
+          return {
+            ok: false,
+            message: `Need $${CART_BUY_COST.toLocaleString()} for a cart.`,
+          }
+        }
+        set({ budget: budget - CART_BUY_COST, carts: carts + 1 })
+        return {
+          ok: true,
+          message: `Cart added to the fleet (−$${CART_BUY_COST.toLocaleString()}). Guests can rent.`,
+        }
+      },
+
+      sellCart: () => {
+        const { carts, staff, budget } = get()
+        if (carts <= 0) return { ok: false, message: 'No carts to sell.' }
+        if (carts === 1 && staff.beverage > 0) {
+          return {
+            ok: false,
+            message: 'Keep one cart for beverage routes, or let beverage staff go first.',
+          }
+        }
+        const refund = Math.round(CART_BUY_COST * 0.45)
+        set({ carts: carts - 1, budget: budget + refund })
+        return { ok: true, message: `Sold a cart (+$${refund.toLocaleString()}).` }
+      },
+
+      chargeCaddieFee: () => {
+        const { staff, budget } = get()
+        if (!hasAvailableCaddie(staff)) {
+          return { ok: false, fee: 0, message: 'No caddies on staff — hire one first.' }
+        }
+        set({ budget: budget + CADDIE_FEE })
+        return {
+          ok: true,
+          fee: CADDIE_FEE,
+          message: `Caddie assigned · +$${CADDIE_FEE} fee.`,
+        }
+      },
+
+      chargeCartRental: () => {
+        const { carts, budget } = get()
+        if (!cartsAvailable(carts)) {
+          return { ok: false, fee: 0, message: 'No carts in the fleet — buy one to rent.' }
+        }
+        set({ budget: budget + CART_RENTAL_FEE })
+        return {
+          ok: true,
+          fee: CART_RENTAL_FEE,
+          message: `Cart rented · +$${CART_RENTAL_FEE}.`,
+        }
       },
 
       buildNextHole: () => {
@@ -454,7 +595,7 @@ export const useGame = create<GameStore>()(
       },
 
       advanceWeek: () => {
-        const { week, holes, budget, reputation, rangeSize } = get()
+        const { week, holes, budget, reputation, rangeSize, staff, carts } = get()
         const range = holes.find((h) => h.kind === 'range')
         const course = holes.filter((h) => h.kind === 'hole')
         const published = course.filter((h) => h.rating !== null)
@@ -470,20 +611,51 @@ export const useGame = create<GameStore>()(
         )
         const north = published.filter((h) => h.courseId === 'a').length
         const south = published.filter((h) => h.courseId === 'b').length
+        const greensBoost = 1 + staff.greenskeeper * 0.04
         const courseIncome = Math.round(
-          published.length * 200 +
+          (published.length * 200 +
             avg * 12 +
             north * 40 +
             south * 55 +
-            reputation * (published.length > 0 ? 9 : 3),
+            reputation * (published.length > 0 ? 9 : 3)) *
+            greensBoost,
         )
-        const income = rangeTraffic + courseIncome
+        const playCount = holes.reduce((s, h) => s + h.playCount, 0)
+        const staffWeek = resolveStaffWeek(staff, {
+          publishedHoles: published.length,
+          rangeOpen: Boolean(range?.rating !== null || range),
+          rangeLarge: rangeSize === 'large',
+          playCount,
+          reputation,
+          carts,
+        })
+        const gross =
+          rangeTraffic +
+          courseIncome +
+          staffWeek.bonusIncome +
+          staffWeek.caddieFees +
+          staffWeek.cartRentals +
+          staffWeek.drinkSales
+        const costs = staffWeek.payroll + staffWeek.upkeep
+        const net = gross - costs
         const nextWeek = week + 1
         set({
           week: nextWeek,
-          budget: budget + income,
+          budget: budget + net,
+          reputation: Math.min(100, Math.max(0, reputation + staffWeek.repDelta)),
         })
-        return { income, week: nextWeek }
+        const summary = [
+          `Fees +$${(rangeTraffic + courseIncome).toLocaleString()}`,
+          ...staffWeek.lines,
+          `Net ${net >= 0 ? '+' : ''}$${net.toLocaleString()}`,
+        ].join(' · ')
+        return {
+          income: gross,
+          net,
+          payroll: staffWeek.payroll,
+          week: nextWeek,
+          summary,
+        }
       },
 
       resetClub: () =>
@@ -500,15 +672,23 @@ export const useGame = create<GameStore>()(
           saveVersion: SAVE_VERSION,
           mapFocusX: 1840,
           mapFocusY: 1160,
+          staff: emptyRoster(),
+          carts: 0,
         }),
 
       getActiveHole: () => {
         const { activeHoleId, holes } = get()
         return holes.find((h) => h.id === activeHoleId) ?? null
       },
+
+      courseHoleCount: () => get().holes.filter((h) => h.kind === 'hole').length,
+
+      caddiesAvailable: () => hasAvailableCaddie(get().staff),
+
+      cartsReady: () => cartsAvailable(get().carts),
     }),
     {
-      name: 'rolling-greens-v4',
+      name: 'rolling-greens-v5',
       partialize: (s) => ({
         clubName: s.clubName,
         budget: s.budget,
@@ -522,15 +702,21 @@ export const useGame = create<GameStore>()(
         saveVersion: SAVE_VERSION,
         mapFocusX: s.mapFocusX,
         mapFocusY: s.mapFocusY,
+        staff: s.staff,
+        carts: s.carts,
         screen: s.started ? (s.screen === 'landing' ? 'course' : s.screen) : 'landing',
       }),
       merge: (persisted, current) => {
         const p = persisted as {
           holes?: unknown[]
           saveVersion?: number
+          staff?: Partial<StaffRoster>
+          carts?: number
+          editor?: Partial<EditorPrefs>
           [key: string]: unknown
         }
-        if (!p.saveVersion || p.saveVersion < SAVE_VERSION) {
+        // Accept v4 saves and inject empty ops; older than 4 resets
+        if (!p.saveVersion || p.saveVersion < 4) {
           return { ...current }
         }
         const holes = (p.holes ?? []).map((raw) =>
@@ -542,6 +728,8 @@ export const useGame = create<GameStore>()(
           ...(p as Partial<GameStore>),
           holes: holes.length ? holes : current.holes,
           editor: { ...current.editor, ...savedEditor },
+          staff: normalizeRoster(p.staff),
+          carts: Math.max(0, Math.min(CART_MAX, Math.floor(Number(p.carts) || 0))),
           saveVersion: SAVE_VERSION,
         }
       },
