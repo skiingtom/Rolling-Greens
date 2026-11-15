@@ -12,6 +12,7 @@ import {
 } from '../game/world'
 import { HOLE_MESH_D, HOLE_MESH_W, MAP_SCALE, PARK_D, PARK_W, mapToWorld } from './coords'
 import { Conifers, type ConiferSpec } from './Conifers'
+import { BLOCKER_FLAG, GROUND_FLAG } from './DecorLayer'
 import { HAZE, MEADOW_RGB, PLAZA, ROAD, WATER, fbm, mottle } from './terrainColors'
 
 /** Sun direction shared by every painted scene: low, from the far side, so shadows rake toward the viewer. */
@@ -183,7 +184,7 @@ function MeadowGround() {
     return g
   }, [])
   return (
-    <mesh geometry={geo} receiveShadow>
+    <mesh geometry={geo} receiveShadow userData={GROUND_FLAG}>
       <meshLambertMaterial vertexColors />
     </mesh>
   )
@@ -296,10 +297,10 @@ function PathRibbon({
   if (!geos) return null
   return (
     <group position={[0, y, 0]}>
-      <mesh geometry={geos.shoulder} receiveShadow>
+      <mesh geometry={geos.shoulder} receiveShadow userData={GROUND_FLAG}>
         <meshLambertMaterial color="#8e9177" side={THREE.DoubleSide} />
       </mesh>
-      <mesh geometry={geos.core} position={[0, 0.01, 0]} receiveShadow>
+      <mesh geometry={geos.core} position={[0, 0.01, 0]} receiveShadow userData={GROUND_FLAG}>
         <meshLambertMaterial color={color} side={THREE.DoubleSide} />
       </mesh>
     </group>
@@ -312,8 +313,20 @@ function Clubhouse3D({ x, z, cartCount }: { x: number; z: number; cartCount: num
   const trim = '#24342a'
   return (
     <group position={[x, 0, z]}>
+      <group userData={BLOCKER_FLAG}>
+        <mesh position={[0, 1.6, 0.4]} visible={false}>
+          <boxGeometry args={[18.5, 3.2, 7.5]} />
+          <meshBasicMaterial />
+        </mesh>
+        {cartCount > 0 && (
+          <mesh position={[12, 1.3, 1.5]} visible={false}>
+            <boxGeometry args={[5.4, 2.6, 4]} />
+            <meshBasicMaterial />
+          </mesh>
+        )}
+      </group>
       {/* Gravel forecourt */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.1, 5.8]} receiveShadow>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.1, 5.8]} receiveShadow userData={GROUND_FLAG}>
         <circleGeometry args={[6.5, 36]} />
         <meshLambertMaterial color={PLAZA} />
       </mesh>

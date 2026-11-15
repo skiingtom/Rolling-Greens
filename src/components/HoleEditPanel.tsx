@@ -6,7 +6,7 @@ import type { BuildStage, EditorTool, PaintTool, SculptMode, WaterMode } from '.
 
 const PAINT_SWATCHES: { type: PaintTool; label: string; color: string }[] = [
   { type: 'fairway', label: 'Fairway', color: '#7d9a58' },
-  { type: 'green', label: 'Green', color: '#b6c89a' },
+  { type: 'green', label: 'Green', color: '#8aa25e' },
   { type: 'rough', label: 'Rough', color: '#55703d' },
   { type: 'bunker', label: 'Bunker', color: '#eeebde' },
   { type: 'tee', label: 'Tee box', color: '#86a062' },
@@ -32,7 +32,7 @@ const WATER_MODES: { mode: WaterMode; label: string; hint: string }[] = [
 const HOLE_TOOLS: { tool: EditorTool; label: string; hint: string }[] = [
   { tool: 'sculpt', label: 'Land sculpt', hint: 'Shape hills, hollows, and slopes on the acreage.' },
   { tool: 'water', label: 'Water', hint: 'Add ponds, lakes, and streams — digs a basin as it fills.' },
-  { tool: 'paint', label: 'Surfaces', hint: 'Lay fairway, dig bunkers, plant the green, and cut paths.' },
+  { tool: 'paint', label: 'Surfaces', hint: 'Lay fairway, plant the green, and cut paths. Bunkers dig a sunken sand trap — set its depth below, then fine-tune with Land sculpt.' },
   { tool: 'tee', label: 'Place tee', hint: 'Click the plot to plant the teeing ground.' },
   { tool: 'pin', label: 'Place cup', hint: 'Click your green to set the hole location.' },
 ]
@@ -256,10 +256,17 @@ export function HoleEditPanel() {
                 onChange={(e) => setEditor({ brushRadius: Number(e.target.value) })}
               />
             </div>
-            {(editor.tool === 'sculpt' || editor.tool === 'water') && (
+            {(editor.tool === 'sculpt' ||
+              editor.tool === 'water' ||
+              (editor.tool === 'paint' && editor.paintType === 'bunker')) && (
               <div className="slider-row">
                 <label htmlFor="brush-s">
-                  {editor.tool === 'water' ? 'Dig depth' : 'Strength'} ·{' '}
+                  {editor.tool === 'water'
+                    ? 'Dig depth'
+                    : editor.tool === 'paint'
+                      ? 'Trap depth'
+                      : 'Strength'}{' '}
+                  ·{' '}
                   {editor.brushStrength.toFixed(2)}
                 </label>
                 <input

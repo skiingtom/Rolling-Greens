@@ -7,7 +7,7 @@ import { TERRAIN_FROM_INDEX, type TerrainType } from '../game/types'
 export const TERRAIN_RGB: Record<TerrainType, [number, number, number]> = {
   rough: [0.33, 0.43, 0.24],
   fairway: [0.45, 0.56, 0.32],
-  green: [0.69, 0.76, 0.58],
+  green: [0.5, 0.64, 0.36],
   bunker: [0.93, 0.92, 0.87],
   water: [0.16, 0.26, 0.36],
   tee: [0.5, 0.6, 0.36],

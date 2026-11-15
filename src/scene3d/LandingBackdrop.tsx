@@ -7,6 +7,7 @@ import { CLUBHOUSE } from '../game/world'
 import { mapToWorld } from './coords'
 import { HoleMesh } from './HoleMesh'
 import { PaintedLook } from './PaintedLook'
+import { DecorLayer } from './DecorLayer'
 import { ParkEnvironment } from './ParkEnvironment'
 import { HolePlayGroup, PlazaWalkers, RoamingCart } from './PlayAgents'
 
@@ -54,6 +55,7 @@ export function LandingBackdrop() {
       {playing.map((h, i) => (
         <HolePlayGroup key={`p${h.id}`} hole={h} delay={i} preferCart />
       ))}
+      <DecorLayer />
       <PlazaWalkers count={12} />
       <RoamingCart index={0} />
       <RoamingCart index={1} />

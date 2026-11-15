@@ -9,6 +9,7 @@ import {
 import { CLUBHOUSE, nextBuildTarget, phaseCopy } from '../game/world'
 import { StaffPanel } from './StaffPanel'
 import { HoleEditPanel } from './HoleEditPanel'
+import { DecorPanel } from './DecorPanel'
 import { beverageCartsReady, totalStaff } from '../game/staff'
 import { CourseScene } from '../scene3d/CourseScene'
 
@@ -29,6 +30,9 @@ export function WorldMap() {
   const carts = useGame((s) => s.carts)
   const editingId = useGame((s) => s.activeHoleId)
   const editing = editingId !== null && holes.some((h) => h.id === editingId)
+  const decorating = useGame((s) => s.decorMode !== null)
+  const setDecorMode = useGame((s) => s.setDecorMode)
+  const placing = editing || decorating
 
   const [toast, setToast] = useState<string | null>(null)
   const [staffOpen, setStaffOpen] = useState(false)
@@ -76,7 +80,7 @@ export function WorldMap() {
   }
 
   return (
-    <main className={`world world--3d${editing ? ' world--editing' : ''}`}>
+    <main className={`world world--3d${placing ? ' world--editing' : ''}`}>
       <div className="world__hud zoo-panel" data-ui>
         <div className="world__hud-brand">
           <div className="zoo-badge" aria-hidden>
@@ -120,12 +124,14 @@ export function WorldMap() {
           focus={focus}
           onOpenHole={openHole}
           onClaim={claimLand}
+          onDecorMessage={setToast}
         />
       </div>
 
       {editing && <HoleEditPanel />}
+      {decorating && <DecorPanel />}
 
-      <aside className="world__dock zoo-panel" data-ui hidden={editing}>
+      <aside className="world__dock zoo-panel" data-ui hidden={placing}>
         <div className="world__dock-copy">
           <h2>{phase.title}</h2>
           <p>{phase.detail}</p>
@@ -150,6 +156,16 @@ export function WorldMap() {
           >
             <span className="zoo-tool__icon zoo-tool__icon--staff" />
             <span>Staff{crew > 0 ? ` · ${crew}` : ''}</span>
+          </button>
+          <button
+            className="zoo-tool"
+            type="button"
+            data-testid="open-decor"
+            onClick={() => setDecorMode({})}
+            title="Place benches, plantings and landmarks"
+          >
+            <span className="zoo-tool__icon zoo-tool__icon--decor" />
+            <span>Decor</span>
           </button>
           {target && (
             <button className="zoo-tool zoo-tool--accent" type="button" onClick={claimLand}>

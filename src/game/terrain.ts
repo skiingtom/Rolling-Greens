@@ -318,6 +318,36 @@ export function sculpt(
   return changed
 }
 
+/**
+ * Carve a sand trap: cells that just became bunker sink into a bowl — deepest in
+ * the middle of the stroke, shallow at the rim. Already-sanded cells are left
+ * alone so dragging back and forth doesn't keep digging; use Land sculpt to
+ * reshape a trap after it's laid.
+ */
+export function digBunker(
+  elevation: Float32Array,
+  before: Uint8Array,
+  after: Uint8Array,
+  cx: number,
+  cy: number,
+  radius: number,
+  depth: number,
+  w: number,
+  h: number,
+): number {
+  const sand = TERRAIN_INDEX.bunker
+  let dug = 0
+  for (const { x, y } of brushCells(cx, cy, radius, w, h)) {
+    const i = idx(x, y, w)
+    if (before[i] === sand || after[i] !== sand) continue
+    const t = Math.hypot(x - cx, y - cy) / Math.max(0.5, radius)
+    const bowl = 0.55 + 0.45 * (1 - t * t)
+    elevation[i] = clamp(elevation[i] - depth * bowl, 0, 1)
+    dug++
+  }
+  return dug
+}
+
 export function paint(
   terrain: Uint8Array,
   cx: number,

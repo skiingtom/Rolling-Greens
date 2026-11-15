@@ -22,6 +22,7 @@ import {
   deserializeHole,
   expandRangeLayout,
   inferBuildStage,
+  digBunker,
   paint,
   placeWaterFeature,
   sculpt,
@@ -44,6 +45,15 @@ import {
   type WaterMode,
 } from './types'
 import { defaultPar, nextBuildTarget } from './world'
+import {
+  DECOR_BY_KIND,
+  DECOR_MAX,
+  DECOR_REFUND,
+  decorWeeklyBonus,
+  normalizeDecor,
+  type Decoration,
+  type DecorModeState,
+} from './decor'
 
 interface EditorPrefs {
   tool: EditorTool
@@ -71,11 +81,18 @@ interface GameStore {
   staff: StaffRoster
   /** Golf carts owned for guest rentals / beverage routes */
   carts: number
+  /** Benches, plantings and landmarks placed around the grounds */
+  decorations: Decoration[]
+  /** Active decorating tool (not saved); null when not decorating */
+  decorMode: DecorModeState | null
 
   setScreen: (s: Screen) => void
   startClub: (name: string) => void
   openHole: (id: number) => void
   closeHole: () => void
+  setDecorMode: (mode: Partial<DecorModeState> | null) => void
+  placeDecoration: (x: number, y: number, z: number) => { ok: boolean; message: string }
+  removeDecoration: (id: number) => { ok: boolean; message: string }
   setPar: (par: 3 | 4 | 5) => void
   setHoleName: (name: string) => void
   setEditor: (partial: Partial<EditorPrefs>) => void
@@ -140,6 +157,8 @@ export const useGame = create<GameStore>()(
       mapFocusY: 1160,
       staff: emptyRoster(),
       carts: 0,
+      decorations: [],
+      decorMode: null,
 
       setScreen: (screen) => set({ screen }),
       setMapFocus: (mapFocusX, mapFocusY) => set({ mapFocusX, mapFocusY }),
@@ -160,9 +179,49 @@ export const useGame = create<GameStore>()(
           mapFocusY: 1160,
           staff: emptyRoster(),
           carts: 0,
+          decorations: [],
+          decorMode: null,
         }),
 
       closeHole: () => set({ activeHoleId: null }),
+
+      setDecorMode: (mode) => {
+        if (mode === null) {
+          set({ decorMode: null })
+          return
+        }
+        const prev = get().decorMode ?? { tool: 'bench', rot: 0 }
+        // Decorating and hole building are separate modes
+        set({ decorMode: { ...prev, ...mode }, activeHoleId: null })
+      },
+
+      placeDecoration: (x, y, z) => {
+        const { decorMode, decorations, budget } = get()
+        if (!decorMode || decorMode.tool === 'remove') return { ok: false, message: '' }
+        const spec = DECOR_BY_KIND[decorMode.tool]
+        if (decorations.length >= DECOR_MAX) {
+          return { ok: false, message: `The grounds are full (${DECOR_MAX} decorations)` }
+        }
+        if (budget < spec.cost) {
+          return { ok: false, message: `${spec.name} costs $${spec.cost.toLocaleString()}` }
+        }
+        const id = decorations.reduce((m, d) => Math.max(m, d.id), 0) + 1
+        set({
+          budget: budget - spec.cost,
+          decorations: [...decorations, { id, kind: spec.kind, x, y, z, rot: decorMode.rot }],
+        })
+        return { ok: true, message: `${spec.name} placed · −$${spec.cost.toLocaleString()}` }
+      },
+
+      removeDecoration: (id) => {
+        const { decorations, budget } = get()
+        const d = decorations.find((o) => o.id === id)
+        if (!d) return { ok: false, message: '' }
+        const spec = DECOR_BY_KIND[d.kind]
+        const refund = Math.round(spec.cost * DECOR_REFUND)
+        set({ budget: budget + refund, decorations: decorations.filter((o) => o.id !== id) })
+        return { ok: true, message: `${spec.name} removed · +$${refund.toLocaleString()}` }
+      },
 
       openHole: (id) => {
         const hole = get().holes.find((h) => h.id === id)
@@ -170,6 +229,7 @@ export const useGame = create<GameStore>()(
           hole?.kind === 'hole' && hole.buildStage === 'raw' ? 'sculpt' : get().editor.tool
         // Editing happens live in the 3D course view — no separate screen
         set({
+          decorMode: null,
           activeHoleId: id,
           screen: 'course',
           mapFocusX: hole?.mapX ?? get().mapFocusX,
@@ -254,12 +314,28 @@ export const useGame = create<GameStore>()(
           hole.height,
         )
         if (!changed) return
+        // Bunkers are sculpted: new sand sinks into a bowl (Trap depth slider)
+        let elevation = hole.elevation
+        if (paintType === 'bunker') {
+          elevation = new Float32Array(hole.elevation)
+          digBunker(
+            elevation,
+            hole.terrain,
+            terrain,
+            x,
+            y,
+            editor.brushRadius,
+            0.025 + 0.07 * editor.brushStrength,
+            hole.width,
+            hole.height,
+          )
+        }
         const cost = Math.min(budget, changed * unitCost)
         set({
           budget: budget - cost,
           holes: holes.map((h) => {
             if (h.id !== activeHoleId) return h
-            const next = { ...h, terrain, designed: true }
+            const next = { ...h, terrain, elevation, designed: true }
             next.buildStage = inferBuildStage(next)
             return next
           }),
@@ -633,7 +709,9 @@ export const useGame = create<GameStore>()(
           reputation,
           carts,
         })
+        const groundsBonus = decorWeeklyBonus(get().decorations)
         const gross =
+          groundsBonus +
           rangeTraffic +
           courseIncome +
           staffWeek.bonusIncome +
@@ -650,6 +728,7 @@ export const useGame = create<GameStore>()(
         })
         const summary = [
           `Fees +$${(rangeTraffic + courseIncome).toLocaleString()}`,
+          ...(groundsBonus > 0 ? [`Grounds +$${groundsBonus.toLocaleString()}`] : []),
           ...staffWeek.lines,
           `Net ${net >= 0 ? '+' : ''}$${net.toLocaleString()}`,
         ].join(' · ')
@@ -678,6 +757,8 @@ export const useGame = create<GameStore>()(
           mapFocusY: 1160,
           staff: emptyRoster(),
           carts: 0,
+          decorations: [],
+          decorMode: null,
         }),
 
       getActiveHole: () => {
@@ -708,6 +789,7 @@ export const useGame = create<GameStore>()(
         mapFocusY: s.mapFocusY,
         staff: s.staff,
         carts: s.carts,
+        decorations: s.decorations,
         screen: s.started ? (s.screen === 'landing' || s.screen === 'editor' ? 'course' : s.screen) : 'landing',
       }),
       merge: (persisted, current) => {
@@ -734,6 +816,8 @@ export const useGame = create<GameStore>()(
           editor: { ...current.editor, ...savedEditor },
           staff: normalizeRoster(p.staff),
           carts: Math.max(0, Math.min(CART_MAX, Math.floor(Number(p.carts) || 0))),
+          decorations: normalizeDecor(p.decorations),
+          decorMode: null,
           // The old standalone editor screen now lives inside the course view
           screen: p.screen === 'editor' ? 'course' : (p.screen as Screen | undefined) ?? current.screen,
           saveVersion: SAVE_VERSION,

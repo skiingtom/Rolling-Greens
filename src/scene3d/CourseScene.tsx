@@ -12,6 +12,9 @@ import { ClaimPlot, HoleMesh, type EditPhase } from './HoleMesh'
 import { useGame } from '../game/store'
 import { ParkEnvironment } from './ParkEnvironment'
 import { PaintedLook } from './PaintedLook'
+import { DecorLayer } from './DecorLayer'
+
+const noop = () => {}
 import { HolePlayGroup, PlazaWalkers, RoamingCart } from './PlayAgents'
 
 const easeInOut = (t: number) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2)
@@ -100,6 +103,7 @@ export function CourseScene({
   focus,
   onOpenHole,
   onClaim,
+  onDecorMessage,
 }: {
   holes: Hole[]
   carts: number
@@ -107,7 +111,9 @@ export function CourseScene({
   focus: { x: number; y: number }
   onOpenHole: (id: number) => void
   onClaim: () => void
+  onDecorMessage?: (msg: string) => void
 }) {
+  const decorating = useGame((s) => s.decorMode !== null)
   const editingId = useGame((s) => s.activeHoleId)
   const editor = useGame((s) => s.editor)
   const lastStroke = useRef(0)
@@ -187,12 +193,12 @@ export function CourseScene({
           <HoleMesh
             key={hole.id}
             hole={hole}
-            onSelect={onOpenHole}
+            onSelect={decorating ? noop : onOpenHole}
             edit={hole.id === editingId ? edit : undefined}
           />
         ))}
 
-        {buildPos && target && editingId === null && (
+        {buildPos && target && editingId === null && !decorating && (
           <ClaimPlot
             mapX={buildPos.x}
             mapY={buildPos.y}
@@ -210,6 +216,8 @@ export function CourseScene({
             preferCart={carts > 0}
           />
         ))}
+
+        <DecorLayer onMessage={onDecorMessage} />
 
         <PlazaWalkers count={10} />
 

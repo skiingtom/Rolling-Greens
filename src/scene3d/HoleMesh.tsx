@@ -4,6 +4,7 @@ import { Html } from '@react-three/drei'
 import type { Hole } from '../game/types'
 import { TERRAIN_FROM_INDEX } from '../game/types'
 import { ratingLabel } from '../game/rating'
+import { GROUND_FLAG } from './DecorLayer'
 import { ELEV_SCALE, HOLE_MESH_D, HOLE_MESH_W, mapToWorld } from './coords'
 import { COLLAR_RGB, MEADOW_RGB, mottle, terrainColor } from './terrainColors'
 
@@ -74,6 +75,7 @@ export function HoleMesh({
         geometry={mesh.geo}
         receiveShadow
         castShadow
+        userData={GROUND_FLAG}
         onClick={(e) => {
           e.stopPropagation()
           if (!edit) onSelect(hole.id)
@@ -280,7 +282,24 @@ export function buildHeightmap(
       const amt = kind === 'bunker' ? 0.25 : kind === 'green' ? 0.55 : kind === 'water' ? 0.4 : 1
       const [r, g, b] = mottle(base, origin.x + lx, origin.z + lz, amt)
       // Greens glow a little, like the pale highlight in the painting
-      const glow = kind === 'green' ? 1.04 : 1
+      let glow = 1
+      if (kind === 'bunker') {
+        // Sand traps: the deeper below the surrounding rim, the more the bowl falls into shade,
+        // with a cool shadow on the face turned away from the low sun
+        let rim = elev
+        for (let oy = -2; oy <= 2; oy++) {
+          for (let ox = -2; ox <= 2; ox++) {
+            const nx = Math.max(0, Math.min(W - 1, gx + ox))
+            const ny = Math.max(0, Math.min(H - 1, gy + oy))
+            rim = Math.max(rim, hole.elevation[ny * W + nx])
+          }
+        }
+        const sunk = Math.max(0, rim - elev)
+        const facing = (eR - eL) * 0.5 + (eU - eD) * 0.5
+        glow = Math.max(0.62, 1 - sunk * 2.6 - Math.max(0, facing) * 3)
+        colors.push(r * glow * 0.98, g * glow, b * glow * 1.04)
+        continue
+      }
       colors.push(r * shade * glow, g * shade * glow, b * shade * glow)
     }
   }

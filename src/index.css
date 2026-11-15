@@ -2399,3 +2399,98 @@ body {
   from { opacity: 0; transform: translateY(18px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* —— Decorating palette —— */
+.zoo-tool__icon--decor {
+  background: radial-gradient(circle at 35% 40%, #b8352c 0 28%, transparent 30%),
+    radial-gradient(circle at 68% 58%, #ece9e1 0 24%, transparent 26%), #41583a;
+}
+
+.decor-tabs {
+  display: flex;
+  gap: 0.3rem;
+  border-bottom: 1px solid rgba(31, 42, 34, 0.14);
+}
+
+.decor-tab {
+  flex: 1;
+  padding: 0.45rem 0.4rem 0.5rem;
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.decor-tab--active {
+  color: var(--ink);
+  border-bottom-color: var(--red);
+}
+
+.decor-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: 0.45rem;
+  padding: 0.7rem 0;
+}
+
+.decor-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.6rem 0.35rem 0.5rem;
+  border-radius: 4px;
+  border: 1px solid rgba(31, 42, 34, 0.18);
+  background: rgba(255, 255, 255, 0.35);
+  text-align: center;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.decor-item:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.decor-item--active {
+  border-color: var(--spruce);
+  background: var(--spruce);
+  color: var(--paper);
+}
+
+.decor-item--active:hover {
+  background: #2c4232;
+}
+
+.decor-item--dear .decor-item__cost {
+  color: var(--red);
+}
+
+.decor-item--active.decor-item--dear .decor-item__cost {
+  color: #f3b6ae;
+}
+
+.decor-item__dab {
+  width: 30px;
+  height: 20px;
+  border-radius: 55% 45% 60% 40% / 60% 50% 50% 40%;
+  transform: rotate(-8deg);
+  box-shadow: inset 0 0 0 1px rgba(31, 42, 34, 0.2);
+}
+
+.decor-item__name {
+  font-size: 0.76rem;
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+.decor-item__cost {
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  opacity: 0.85;
+}
+
+.decor-panel .btn {
+  padding: 0.65rem 0.8rem;
+}
