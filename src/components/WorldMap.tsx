@@ -60,6 +60,7 @@ export function WorldMap() {
   const [cam, setCam] = useState({ x: mapFocusX, y: mapFocusY })
   const [toast, setToast] = useState<string | null>(null)
   const [zoom, setZoom] = useState(0.72)
+  const [viewSize, setViewSize] = useState({ w: 1200, h: 600 })
 
   const patches = useMemo(() => fieldPatches(7), [])
   const courseHoles = holes.filter((h) => h.kind === 'hole')
@@ -73,6 +74,16 @@ export function WorldMap() {
   useEffect(() => {
     setCam({ x: mapFocusX, y: mapFocusY })
   }, [mapFocusX, mapFocusY])
+
+  useEffect(() => {
+    const el = viewportRef.current
+    if (!el) return
+    const measure = () => setViewSize({ w: el.clientWidth, h: el.clientHeight })
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   useEffect(() => {
     if (!toast) return
@@ -125,7 +136,7 @@ export function WorldMap() {
     setToast(result.message)
   }
 
-  const transform = `translate(50%, 50%) translate(${-cam.x * zoom}px, ${-cam.y * zoom}px) scale(${zoom})`
+  const transform = `translate(${viewSize.w / 2 - cam.x * zoom}px, ${viewSize.h / 2 - cam.y * zoom}px) scale(${zoom})`
 
   return (
     <main className="world">
