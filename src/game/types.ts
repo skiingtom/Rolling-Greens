@@ -62,7 +62,7 @@ export const COURSES: CourseInfo[] = [
 ]
 
 export const MAX_HOLES = 36
-export const STARTING_BUDGET = 2200
+export const STARTING_BUDGET = 2800
 
 export const RANGE_UPGRADE_COST = 12000
 
