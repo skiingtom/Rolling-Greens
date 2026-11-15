@@ -8,6 +8,7 @@ import {
 } from '../game/types'
 import { CLUBHOUSE, nextBuildTarget, phaseCopy } from '../game/world'
 import { StaffPanel } from './StaffPanel'
+import { HoleEditPanel } from './HoleEditPanel'
 import { beverageCartsReady, totalStaff } from '../game/staff'
 import { CourseScene } from '../scene3d/CourseScene'
 
@@ -26,6 +27,8 @@ export function WorldMap() {
   const setMapFocus = useGame((s) => s.setMapFocus)
   const staff = useGame((s) => s.staff)
   const carts = useGame((s) => s.carts)
+  const editingId = useGame((s) => s.activeHoleId)
+  const editing = editingId !== null && holes.some((h) => h.id === editingId)
 
   const [toast, setToast] = useState<string | null>(null)
   const [staffOpen, setStaffOpen] = useState(false)
@@ -73,7 +76,7 @@ export function WorldMap() {
   }
 
   return (
-    <main className="world world--3d">
+    <main className={`world world--3d${editing ? ' world--editing' : ''}`}>
       <div className="world__hud zoo-panel" data-ui>
         <div className="world__hud-brand">
           <div className="zoo-badge" aria-hidden>
@@ -120,7 +123,9 @@ export function WorldMap() {
         />
       </div>
 
-      <aside className="world__dock zoo-panel" data-ui>
+      {editing && <HoleEditPanel />}
+
+      <aside className="world__dock zoo-panel" data-ui hidden={editing}>
         <div className="world__dock-copy">
           <h2>{phase.title}</h2>
           <p>{phase.detail}</p>

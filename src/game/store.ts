@@ -75,6 +75,7 @@ interface GameStore {
   setScreen: (s: Screen) => void
   startClub: (name: string) => void
   openHole: (id: number) => void
+  closeHole: () => void
   setPar: (par: 3 | 4 | 5) => void
   setHoleName: (name: string) => void
   setEditor: (partial: Partial<EditorPrefs>) => void
@@ -161,13 +162,16 @@ export const useGame = create<GameStore>()(
           carts: 0,
         }),
 
+      closeHole: () => set({ activeHoleId: null }),
+
       openHole: (id) => {
         const hole = get().holes.find((h) => h.id === id)
         const tool =
           hole?.kind === 'hole' && hole.buildStage === 'raw' ? 'sculpt' : get().editor.tool
+        // Editing happens live in the 3D course view — no separate screen
         set({
           activeHoleId: id,
-          screen: 'editor',
+          screen: 'course',
           mapFocusX: hole?.mapX ?? get().mapFocusX,
           mapFocusY: hole?.mapY ?? get().mapFocusY,
           editor: { ...get().editor, tool },
@@ -537,7 +541,7 @@ export const useGame = create<GameStore>()(
           budget: budget - cost,
           holes: [...holes, hole],
           activeHoleId: nextId,
-          screen: 'editor',
+          screen: 'course',
           mapFocusX: hole.mapX,
           mapFocusY: hole.mapY,
         })
@@ -704,7 +708,7 @@ export const useGame = create<GameStore>()(
         mapFocusY: s.mapFocusY,
         staff: s.staff,
         carts: s.carts,
-        screen: s.started ? (s.screen === 'landing' ? 'course' : s.screen) : 'landing',
+        screen: s.started ? (s.screen === 'landing' || s.screen === 'editor' ? 'course' : s.screen) : 'landing',
       }),
       merge: (persisted, current) => {
         const p = persisted as {
@@ -730,9 +734,16 @@ export const useGame = create<GameStore>()(
           editor: { ...current.editor, ...savedEditor },
           staff: normalizeRoster(p.staff),
           carts: Math.max(0, Math.min(CART_MAX, Math.floor(Number(p.carts) || 0))),
+          // The old standalone editor screen now lives inside the course view
+          screen: p.screen === 'editor' ? 'course' : (p.screen as Screen | undefined) ?? current.screen,
           saveVersion: SAVE_VERSION,
         }
       },
     },
   ),
 )
+
+// Dev-only handle for poking at state from the browser console / tests
+if (import.meta.env.DEV) {
+  ;(globalThis as unknown as { __rgGame?: typeof useGame }).__rgGame = useGame
+}

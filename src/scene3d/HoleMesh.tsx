@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { Html } from '@react-three/drei'
 import type { Hole } from '../game/types'
@@ -20,19 +20,53 @@ function stageCopy(hole: Hole): string {
   return hole.name
 }
 
+export type EditPhase = 'down' | 'move' | 'up'
+
+export interface HoleEditHandlers {
+  /** Brush stroke or placement at a fractional grid cell */
+  onEdit: (phase: EditPhase, cellX: number, cellY: number) => void
+  /** Brush radius in grid cells; 0 shows a placement pin instead of a ring */
+  brushCells: number
+}
+
 export function HoleMesh({
   hole,
   selected,
   onSelect,
   hideLabel = false,
+  edit,
 }: {
   hole: Hole
   selected?: boolean
   onSelect: (id: number) => void
   hideLabel?: boolean
+  /** When set, this hole is being built live: drag to sculpt/paint, click to place */
+  edit?: HoleEditHandlers
 }) {
   const { x, z } = mapToWorld(hole.mapX, hole.mapY)
-  const mesh = useMemo(() => buildHeightmap(hole), [hole])
+  // Build at full resolution while editing so the brush lands precisely
+  const editing = !!edit
+  const mesh = useMemo(() => buildHeightmap(hole, editing ? { step: 1 } : {}), [hole, editing])
+  useEffect(() => () => mesh.geo.dispose(), [mesh])
+
+  const stroking = useRef(false)
+  const cursor = useRef<THREE.Group>(null)
+  const sx = HOLE_MESH_W / (hole.width - 1)
+  const sz = HOLE_MESH_D / (hole.height - 1)
+
+  const toCell = (p: THREE.Vector3) => ({
+    cx: Math.max(0, Math.min(hole.width - 1, (p.x - x) / sx + (hole.width - 1) / 2)),
+    cy: Math.max(0, Math.min(hole.height - 1, (p.z - z) / sz + (hole.height - 1) / 2)),
+  })
+
+  const moveCursor = (p: THREE.Vector3 | null) => {
+    const c = cursor.current
+    if (!c) return
+    c.visible = !!p
+    if (p) c.position.set(p.x - x, p.y + 0.12, p.z - z)
+  }
+
+  const ringR = edit ? Math.max(0.4, edit.brushCells * sx) : 1
 
   return (
     <group position={[x, 0, z]}>
@@ -42,31 +76,75 @@ export function HoleMesh({
         castShadow
         onClick={(e) => {
           e.stopPropagation()
-          onSelect(hole.id)
+          if (!edit) onSelect(hole.id)
+        }}
+        onPointerDown={(e) => {
+          if (!edit || e.button !== 0) return
+          e.stopPropagation()
+          ;(e.target as Element).setPointerCapture?.(e.pointerId)
+          stroking.current = true
+          const { cx, cy } = toCell(e.point)
+          edit.onEdit('down', cx, cy)
+        }}
+        onPointerMove={(e) => {
+          if (!edit) return
+          e.stopPropagation()
+          moveCursor(e.point)
+          if (stroking.current) {
+            const { cx, cy } = toCell(e.point)
+            edit.onEdit('move', cx, cy)
+          }
+        }}
+        onPointerUp={(e) => {
+          if (!edit || !stroking.current) return
+          stroking.current = false
+          ;(e.target as Element).releasePointerCapture?.(e.pointerId)
+          const { cx, cy } = toCell(e.point)
+          edit.onEdit('up', cx, cy)
         }}
         onPointerOver={(e) => {
           e.stopPropagation()
-          document.body.style.cursor = 'pointer'
+          document.body.style.cursor = edit ? 'crosshair' : 'pointer'
         }}
         onPointerOut={() => {
           document.body.style.cursor = 'auto'
+          moveCursor(null)
         }}
       >
         <meshLambertMaterial vertexColors />
       </mesh>
 
-      {selected && (
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.04, 0]}>
-          <ringGeometry args={[Math.max(HOLE_MESH_W, HOLE_MESH_D) * 0.52, Math.max(HOLE_MESH_W, HOLE_MESH_D) * 0.55, 48]} />
-          <meshBasicMaterial color="#efe6cf" transparent opacity={0.5} />
-        </mesh>
+      {edit && (
+        <group ref={cursor} visible={false}>
+          {edit.brushCells > 0 ? (
+            <>
+              <mesh rotation={[-Math.PI / 2, 0, 0]} renderOrder={10}>
+                <ringGeometry args={[ringR * 0.86, ringR, 48]} />
+                <meshBasicMaterial color="#f3eee2" transparent opacity={0.85} depthTest={false} />
+              </mesh>
+              <mesh rotation={[-Math.PI / 2, 0, 0]} renderOrder={9}>
+                <circleGeometry args={[ringR * 0.86, 48]} />
+                <meshBasicMaterial color="#f3eee2" transparent opacity={0.12} depthTest={false} />
+              </mesh>
+            </>
+          ) : (
+            <mesh position={[0, 0.5, 0]} renderOrder={10}>
+              <coneGeometry args={[0.35, 1, 10]} />
+              <meshBasicMaterial color="#b0392e" transparent opacity={0.8} depthTest={false} />
+            </mesh>
+          )}
+        </group>
       )}
 
-      {hole.buildStage === 'open' || hole.kind === 'range' ? (
+      {/* Chalk survey line around the plot being built */}
+      {(selected || edit) && <PlotOutline />}
+
+      {hole.buildStage === 'open' || hole.kind === 'range' || edit ? (
         <Flag local={mesh.pinLocal} />
       ) : null}
+      {edit && <TeeMarker local={mesh.teeLocal} />}
 
-      {!hideLabel && (
+      {!hideLabel && !edit && (
         <Html position={[0, 2.4, HOLE_MESH_D * 0.55]} center distanceFactor={48} style={{ pointerEvents: 'none' }}>
           <div className="label3d">
             <strong>
@@ -76,6 +154,41 @@ export function HoleMesh({
           </div>
         </Html>
       )}
+    </group>
+  )
+}
+
+function PlotOutline() {
+  const w = HOLE_MESH_W + 0.6
+  const d = HOLE_MESH_D + 0.6
+  const t = 0.16
+  const strips: [number, number, number, number][] = [
+    [0, -d / 2, w, t],
+    [0, d / 2, w, t],
+    [-w / 2, 0, t, d],
+    [w / 2, 0, t, d],
+  ]
+  return (
+    <group position={[0, 0.06, 0]}>
+      {strips.map(([sx, sz, sw, sd], i) => (
+        <mesh key={i} rotation={[-Math.PI / 2, 0, 0]} position={[sx, 0, sz]}>
+          <planeGeometry args={[sw, sd]} />
+          <meshBasicMaterial color="#efe6cf" transparent opacity={0.7} />
+        </mesh>
+      ))}
+    </group>
+  )
+}
+
+function TeeMarker({ local }: { local: { x: number; y: number; z: number } }) {
+  return (
+    <group position={[local.x, local.y, local.z]}>
+      {[-0.45, 0.45].map((ox) => (
+        <mesh key={ox} position={[ox, 0.16, 0]} castShadow>
+          <sphereGeometry args={[0.16, 10, 8]} />
+          <meshLambertMaterial color="#ece9e1" />
+        </mesh>
+      ))}
     </group>
   )
 }

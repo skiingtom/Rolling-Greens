@@ -8,6 +8,7 @@ import { PlaytestScene } from '../scene3d/PlaytestScene'
 export function Playtest() {
   const hole = useGame((s) => s.getActiveHole())
   const setScreen = useGame((s) => s.setScreen)
+  const closeHole = useGame((s) => s.closeHole)
   const recordPlay = useGame((s) => s.recordPlay)
   const caddiesAvailable = useGame((s) => s.caddiesAvailable)
   const cartsReady = useGame((s) => s.cartsReady)
@@ -177,7 +178,7 @@ export function Playtest() {
     return (
       <main className="course">
         <p>No hole selected.</p>
-        <button className="btn btn--ghost" type="button" onClick={() => setScreen('editor')}>
+        <button className="btn btn--ghost" type="button" onClick={() => setScreen('course')}>
           Back
         </button>
       </main>
@@ -221,10 +222,13 @@ export function Playtest() {
           <button className="btn btn--ghost" type="button" onClick={resetBall}>
             Reset
           </button>
-          <button className="btn btn--ghost" type="button" onClick={() => setScreen('editor')}>
-            Editor
+          <button className="btn btn--ghost" type="button" onClick={() => setScreen('course')}>
+            Edit hole
           </button>
-          <button className="btn btn--solid" type="button" onClick={() => setScreen('course')}>
+          <button className="btn btn--solid" type="button" onClick={() => {
+              closeHole()
+              setScreen('course')
+            }}>
             Course
           </button>
         </div>

@@ -248,9 +248,10 @@ export function brushCells(
   h: number,
 ): Point[] {
   const cells: Point[] = []
-  const r = Math.ceil(radius)
-  for (let y = cy - r; y <= cy + r; y++) {
-    for (let x = cx - r; x <= cx + r; x++) {
+  // Walk whole cells: pointer input gives fractional centres, and a fractional
+  // cell index would silently miss the typed array while still being charged.
+  for (let y = Math.ceil(cy - radius); y <= Math.floor(cy + radius); y++) {
+    for (let x = Math.ceil(cx - radius); x <= Math.floor(cx + radius); x++) {
       if (!inBounds(x, y, w, h)) continue
       const d = Math.hypot(x - cx, y - cy)
       if (d <= radius) cells.push({ x, y })
@@ -294,7 +295,7 @@ export function sculpt(
   }
 
   if (mode === 'flatten') {
-    const center = elevation[idx(clamp(cx, 0, w - 1), clamp(cy, 0, h - 1), w)]
+    const center = elevation[idx(clamp(Math.round(cx), 0, w - 1), clamp(Math.round(cy), 0, h - 1), w)]
     for (const { x, y } of cells) {
       const i = idx(x, y, w)
       const falloff = 1 - Math.hypot(x - cx, y - cy) / (radius + 0.001)

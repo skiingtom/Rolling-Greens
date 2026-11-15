@@ -9,6 +9,7 @@ export function TopBar() {
   const holes = useGame((s) => s.holes)
   const screen = useGame((s) => s.screen)
   const setScreen = useGame((s) => s.setScreen)
+  const closeHole = useGame((s) => s.closeHole)
   const advanceWeek = useGame((s) => s.advanceWeek)
   const [toast, setToast] = useState<string | null>(null)
 
@@ -44,7 +45,10 @@ export function TopBar() {
       </div>
       <div className="topbar__actions">
         {screen !== 'course' && (
-          <button className="btn btn--ghost" type="button" onClick={() => setScreen('course')}>
+          <button className="btn btn--ghost" type="button" onClick={() => {
+              closeHole()
+              setScreen('course')
+            }}>
             Park map
           </button>
         )}
