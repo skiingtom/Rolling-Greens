@@ -37,7 +37,16 @@ export function Landing() {
               aria-label="Club name"
               autoFocus
             />
-            <button className="btn btn--primary" type="submit">
+            <button
+              className="btn btn--primary"
+              type="submit"
+              data-testid="start-club"
+              onClick={(e) => {
+                // Ensure mouse clicks always start even if submit is intercepted
+                e.preventDefault()
+                startClub(name || 'Rolling Greens GC')
+              }}
+            >
               Arrive at the clubhouse
             </button>
           </form>

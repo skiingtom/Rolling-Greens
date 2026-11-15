@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { useGame } from '../game/store'
 
 export function TopBar() {
@@ -9,8 +10,20 @@ export function TopBar() {
   const screen = useGame((s) => s.screen)
   const setScreen = useGame((s) => s.setScreen)
   const advanceWeek = useGame((s) => s.advanceWeek)
+  const [toast, setToast] = useState<string | null>(null)
 
   const hasCourse = holes.some((h) => h.kind === 'hole')
+
+  useEffect(() => {
+    if (!toast) return
+    const t = window.setTimeout(() => setToast(null), 2400)
+    return () => window.clearTimeout(t)
+  }, [toast])
+
+  function onCollect() {
+    const { income, week: nextWeek } = advanceWeek()
+    setToast(`Week ${nextWeek} · +$${income.toLocaleString()} collected`)
+  }
 
   return (
     <header className="topbar">
@@ -36,11 +49,17 @@ export function TopBar() {
           </button>
         )}
         {screen === 'course' && (
-          <button className="btn btn--solid" type="button" onClick={advanceWeek}>
+          <button
+            className="btn btn--solid"
+            type="button"
+            data-testid="collect-fees"
+            onClick={onCollect}
+          >
             {hasCourse ? 'Collect fees' : 'Collect range fees'}
           </button>
         )}
       </div>
+      {toast && <div className="toast">{toast}</div>}
     </header>
   )
 }

@@ -115,7 +115,7 @@ export const WORLD_H = 2800
 
 export function nextHoleCost(totalHoles: number): number {
   // Early holes cheaper; second eighteen costs more
-  const base = 2400 + totalHoles * 380
+  const base = 2000 + totalHoles * 380
   if (totalHoles >= 18) return Math.round(base * 1.35)
   if (totalHoles >= 9) return Math.round(base * 1.15)
   return base

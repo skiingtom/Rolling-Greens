@@ -66,7 +66,7 @@ interface GameStore {
   recordPlay: (strokes: number) => void
   buildNextHole: () => { ok: boolean; cost: number; message: string }
   expandRange: () => { ok: boolean; cost: number; message: string }
-  advanceWeek: () => void
+  advanceWeek: () => { income: number; week: number }
   resetClub: () => void
   getActiveHole: () => Hole | null
   courseHoleCount: () => number
@@ -430,10 +430,13 @@ export const useGame = create<GameStore>()(
             south * 55 +
             reputation * (published.length > 0 ? 9 : 3),
         )
+        const income = rangeTraffic + courseIncome
+        const nextWeek = week + 1
         set({
-          week: week + 1,
-          budget: budget + rangeTraffic + courseIncome,
+          week: nextWeek,
+          budget: budget + income,
         })
+        return { income, week: nextWeek }
       },
 
       resetClub: () =>

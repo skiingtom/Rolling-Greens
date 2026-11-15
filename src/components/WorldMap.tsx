@@ -66,6 +66,7 @@ export function WorldMap() {
   const openHole = useGame((s) => s.openHole)
   const buildNextHole = useGame((s) => s.buildNextHole)
   const expandRange = useGame((s) => s.expandRange)
+  const advanceWeek = useGame((s) => s.advanceWeek)
   const setMapFocus = useGame((s) => s.setMapFocus)
 
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -149,6 +150,11 @@ export function WorldMap() {
   function onExpandRange() {
     const result = expandRange()
     setToast(result.message)
+  }
+
+  function onCollectFees() {
+    const { income, week: nextWeek } = advanceWeek()
+    setToast(`Week ${nextWeek} · +$${income.toLocaleString()} collected`)
   }
 
   // Slight isometric foreshortening for a park-builder camera
@@ -320,6 +326,14 @@ export function WorldMap() {
           <p>{phase.detail}</p>
         </div>
         <div className="world__dock-actions">
+          <button
+            className="btn btn--solid"
+            type="button"
+            data-testid="collect-fees-dock"
+            onClick={onCollectFees}
+          >
+            {count > 0 ? 'Collect fees' : 'Collect range fees'}
+          </button>
           {target && (
             <button className="btn btn--primary" type="button" onClick={claimLand}>
               Claim land · ${cost.toLocaleString()}
