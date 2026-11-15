@@ -185,7 +185,7 @@ export function WorldMap() {
           </button>
         </div>
         <p className="world__hint">
-          Drag to orbit · scroll to zoom · click a hole to edit · ${budget.toLocaleString()} · Rep{' '}
+          Drag to pan · right-drag to orbit · scroll to zoom · click a hole to build · ${budget.toLocaleString()} · Rep{' '}
           {reputation}
           {carts > 0 ? ` · ${carts} cart${carts === 1 ? '' : 's'}` : ''}
           {drinksOn ? ' · Drink cart out' : ''}

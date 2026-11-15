@@ -1,7 +1,28 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
-  <rect width="64" height="64" rx="14" fill="#1A4A32"/>
-  <ellipse cx="32" cy="42" rx="22" ry="8" fill="#2D6B4A"/>
-  <path d="M32 12v28" stroke="#E8D5A3" stroke-width="2.5" stroke-linecap="round"/>
-  <path d="M32 14l16 6-16 4V14z" fill="#C45C26"/>
-  <circle cx="32" cy="42" r="3" fill="#F5F2EB"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <clipPath id="tile">
+      <rect x="8" y="8" width="240" height="240" rx="52"/>
+    </clipPath>
+  </defs>
+  <g clip-path="url(#tile)">
+    <!-- Meadow -->
+    <rect x="0" y="0" width="256" height="256" fill="#55703d"/>
+    <path d="M0 150 C 60 120, 130 170, 256 128 L256 256 L0 256 Z" fill="#4a6435"/>
+    <!-- Dark spruce stand with long shadows -->
+    <path d="M30 0 L74 0 L60 120 L18 112 Z" fill="#16251b" opacity="0.55"/>
+    <path d="M44 20 L58 70 L52 70 L64 104 L24 104 L36 70 L30 70 Z" fill="#1d2e22"/>
+    <path d="M186 6 L198 44 L193 44 L204 74 L168 74 L179 44 L174 44 Z" fill="#1d2e22"/>
+    <path d="M168 74 L204 74 L236 120 L196 128 Z" fill="#16251b" opacity="0.5"/>
+    <!-- Pale green and dark collar -->
+    <ellipse cx="124" cy="168" rx="86" ry="50" fill="#3f5530"/>
+    <ellipse cx="124" cy="166" rx="80" ry="45" fill="#a9be86"/>
+    <!-- Sand trap -->
+    <path d="M196 196 C 214 186, 236 196, 232 214 C 228 230, 206 226, 200 216 C 194 208, 186 204, 196 196 Z" fill="#eeebde"/>
+    <!-- Flag -->
+    <ellipse cx="132" cy="176" rx="7" ry="3.5" fill="#1b2119"/>
+    <path d="M132 176 L132 84" stroke="#ece9e1" stroke-width="6" stroke-linecap="round"/>
+    <path d="M134 86 L176 100 L134 114 Z" fill="#b8352c"/>
+    <path d="M132 176 L104 190" stroke="#16251b" stroke-width="5" stroke-linecap="round" opacity="0.4"/>
+  </g>
+  <rect x="8" y="8" width="240" height="240" rx="52" fill="none" stroke="#f0eadc" stroke-width="6"/>
 </svg>

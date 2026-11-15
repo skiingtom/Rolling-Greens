@@ -1,13 +1,20 @@
 {
   "name": "rolling-greens",
+  "productName": "Rolling Greens",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "Build a painted golf resort and shape every hole by hand.",
+  "author": "Rolling Greens",
   "type": "module",
+  "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "desktop": "npm run build && electron .",
+    "dist:win": "npm run build && electron-builder --win portable zip --x64",
+    "dist:win-installer": "npm run build && electron-builder --win nsis --x64"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.9",
@@ -19,12 +26,68 @@
     "zustand": "^5.1.0"
   },
   "devDependencies": {
+    "@fontsource/fraunces": "^5.3.0",
+    "@fontsource/work-sans": "^5.3.0",
     "@types/node": "^24.19.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
+    "electron": "^45.3.2",
+    "electron-builder": "^26.18.0",
     "oxlint": "^1.90.0",
+    "png-to-ico": "^3.0.2",
+    "resedit": "^3.1.1",
     "typescript": "~7.0.2",
     "vite": "^8.3.6"
+  },
+  "build": {
+    "appId": "com.rollinggreens.game",
+    "productName": "Rolling Greens",
+    "copyright": "Copyright © 2026 Rolling Greens",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "build/icon.png",
+      "package.json",
+      "!node_modules/**/*"
+    ],
+    "asar": true,
+    "afterPack": "build/after-pack.cjs",
+    "win": {
+      "icon": "build/icon.ico",
+      "signAndEditExecutable": false,
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Rolling Greens",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "artifactName": "Rolling-Greens-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "Rolling-Greens-${version}-Portable.${ext}"
+    }
   }
 }

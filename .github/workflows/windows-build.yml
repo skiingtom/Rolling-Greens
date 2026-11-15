@@ -1,0 +1,44 @@
+name: Windows build
+
+# Builds the desktop game on a real Windows runner: an installer (Setup.exe)
+# plus a single-file portable .exe. Run it from the Actions tab, or push a
+# tag like v1.0.1 to build and attach the files to a GitHub release.
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build game
+        run: npm run build
+
+      - name: Package Windows installer + portable exe
+        run: npx electron-builder --win nsis portable --x64 --publish never
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rolling-greens-windows
+          path: |
+            release/*.exe
+          if-no-files-found: error
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*.exe
