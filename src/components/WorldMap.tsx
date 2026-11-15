@@ -19,6 +19,7 @@ import {
   holeMapPosition,
   nextBuildTarget,
   parkBushes,
+  parkGuests,
   parkPonds,
   parkTrees,
   phaseCopy,
@@ -82,13 +83,14 @@ export function WorldMap() {
   const last = useRef({ x: 0, y: 0 })
   const [cam, setCam] = useState({ x: mapFocusX, y: mapFocusY })
   const [toast, setToast] = useState<string | null>(null)
-  const [zoom, setZoom] = useState(0.95)
+  const [zoom, setZoom] = useState(1.05)
   const [viewSize, setViewSize] = useState({ w: 1200, h: 600 })
 
   const patches = useMemo(() => fieldPatches(7), [])
   const trees = useMemo(() => parkTrees(5), [])
   const bushes = useMemo(() => parkBushes(9), [])
   const ponds = useMemo(() => parkPonds(), [])
+  const guests = useMemo(() => parkGuests(4), [])
   const courseHoles = holes.filter((h) => h.kind === 'hole')
   const range = holes.find((h) => h.kind === 'range')
   const count = courseHoles.length
@@ -168,7 +170,7 @@ export function WorldMap() {
   }
 
   // Strong isometric park-builder camera (Planet Zoo–like tilt)
-  const transform = `translate(${viewSize.w / 2 - cam.x * zoom}px, ${viewSize.h / 2 - cam.y * zoom * 0.82}px) scale(${zoom}) skewX(-16deg) scaleY(0.72)`
+  const transform = `translate(${viewSize.w / 2 - cam.x * zoom}px, ${viewSize.h / 2 - cam.y * zoom * 0.78}px) scale(${zoom}) skewX(-22deg) scaleY(0.64)`
 
   return (
     <main className="world">
@@ -295,6 +297,11 @@ export function WorldMap() {
               onClick={() => openHole(range.id)}
             >
               <div className="habitat__fence" />
+              <span className="habitat__post habitat__post--nw" />
+              <span className="habitat__post habitat__post--ne" />
+              <span className="habitat__post habitat__post--sw" />
+              <span className="habitat__post habitat__post--se" />
+              <span className="habitat__gate" />
               <ParcelThumb hole={range} />
               <div className="habitat__tag">
                 <strong>{range.name}</strong>
@@ -313,6 +320,11 @@ export function WorldMap() {
               onClick={() => openHole(hole.id)}
             >
               <div className="habitat__fence" />
+              <span className="habitat__post habitat__post--nw" />
+              <span className="habitat__post habitat__post--ne" />
+              <span className="habitat__post habitat__post--sw" />
+              <span className="habitat__post habitat__post--se" />
+              <span className="habitat__gate" />
               <ParcelThumb hole={hole} />
               <div className="habitat__tag">
                 <strong>
@@ -332,6 +344,10 @@ export function WorldMap() {
               onClick={claimLand}
             >
               <div className="habitat__fence habitat__fence--dashed" />
+              <span className="habitat__post habitat__post--nw" />
+              <span className="habitat__post habitat__post--ne" />
+              <span className="habitat__post habitat__post--sw" />
+              <span className="habitat__post habitat__post--se" />
               <div className="habitat__claim">
                 <span className="habitat__claim-kicker">New habitat</span>
                 <strong>
@@ -357,6 +373,21 @@ export function WorldMap() {
               )
             })}
 
+          {guests.map((g, i) => (
+            <div
+              key={`guest-${i}`}
+              className="world__guest"
+              style={{
+                left: g.x,
+                top: g.y,
+                ['--guest-hue' as string]: String(g.hue),
+                ['--guest-delay' as string]: `${g.delay}s`,
+                ['--guest-span' as string]: `${g.span}px`,
+                zIndex: 5 + Math.floor(g.y / 40),
+              }}
+            />
+          ))}
+
           {trees.map((t, i) => (
             <div
               key={`tree-${i}`}
@@ -365,9 +396,13 @@ export function WorldMap() {
                 left: t.x,
                 top: t.y,
                 transform: `translate(-50%, -88%) scale(${t.scale})`,
-                zIndex: 5 + Math.floor(t.y / 40),
+                zIndex: 6 + Math.floor(t.y / 40),
               }}
-            />
+            >
+              <i className="world__canopy world__canopy--a" />
+              <i className="world__canopy world__canopy--b" />
+              <i className="world__canopy world__canopy--c" />
+            </div>
           ))}
         </div>
       </div>

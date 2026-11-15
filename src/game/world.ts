@@ -156,40 +156,71 @@ export function parkTrees(seed = 3): TreeSpec[] {
 
   // Landmark groves around the clubhouse / range so the start view feels lush
   const groves = [
-    { cx: CLUBHOUSE.x - 220, cy: CLUBHOUSE.y - 80, n: 28, r: 160 },
-    { cx: CLUBHOUSE.x + 280, cy: CLUBHOUSE.y - 40, n: 24, r: 150 },
-    { cx: CLUBHOUSE.x - 40, cy: CLUBHOUSE.y - 220, n: 22, r: 140 },
-    { cx: 2100, cy: 1000, n: 30, r: 180 },
-    { cx: 1500, cy: 1050, n: 20, r: 130 },
+    { cx: CLUBHOUSE.x - 240, cy: CLUBHOUSE.y - 90, n: 36, r: 190 },
+    { cx: CLUBHOUSE.x + 300, cy: CLUBHOUSE.y - 50, n: 32, r: 175 },
+    { cx: CLUBHOUSE.x - 60, cy: CLUBHOUSE.y - 240, n: 28, r: 160 },
+    { cx: CLUBHOUSE.x + 120, cy: CLUBHOUSE.y + 90, n: 18, r: 110 },
+    { cx: 2100, cy: 1000, n: 38, r: 200 },
+    { cx: 1500, cy: 1050, n: 26, r: 150 },
+    { cx: 2300, cy: 1180, n: 22, r: 140 },
   ]
   for (const g of groves) {
     for (let i = 0; i < g.n; i++) {
       const a = rand() * Math.PI * 2
-      const d = 40 + rand() * g.r
+      const d = 35 + rand() * g.r
       trees.push({
         x: g.cx + Math.cos(a) * d,
-        y: g.cy + Math.sin(a) * d * 0.7,
-        scale: 0.85 + rand() * 1.1,
+        y: g.cy + Math.sin(a) * d * 0.65,
+        scale: 0.95 + rand() * 1.25,
         variant: Math.floor(rand() * 5),
       })
     }
   }
 
-  for (let i = 0; i < 380; i++) {
+  for (let i = 0; i < 420; i++) {
     const x = rand() * WORLD_W
     const y = rand() * WORLD_H
     // Keep clear of the road band and immediate plaza pad
     if (y > 1260 && y < 1440) continue
-    if (Math.hypot(x - CLUBHOUSE.x, y - CLUBHOUSE.y) < 120) continue
+    if (Math.hypot(x - CLUBHOUSE.x, y - CLUBHOUSE.y) < 100) continue
     if (x > 1950 && x < 2350 && y > 1040 && y < 1220 && rand() > 0.2) continue
     trees.push({
       x,
       y,
-      scale: 0.55 + rand() * 1.2,
+      scale: 0.6 + rand() * 1.15,
       variant: Math.floor(rand() * 5),
     })
   }
   return trees
+}
+
+export type GuestSpec = { x: number; y: number; hue: number; delay: number; span: number }
+
+/** Guests ambling the plaza / range path — Planet Zoo park life */
+export function parkGuests(seed = 17): GuestSpec[] {
+  const guests: GuestSpec[] = []
+  let s = seed * 6151
+  const rand = () => {
+    s = (s * 16807) % 2147483647
+    return (s - 1) / 2147483646
+  }
+  const lanes = [
+    { x0: CLUBHOUSE.x - 40, y0: CLUBHOUSE.y + 70, x1: 1980, y1: 1140 },
+    { x0: CLUBHOUSE.x + 20, y0: CLUBHOUSE.y + 100, x1: CLUBHOUSE.x - 80, y1: CLUBHOUSE.y + 160 },
+    { x0: 1720, y0: 1320, x1: 1900, y1: 1180 },
+    { x0: 1880, y0: 1200, x1: 2100, y1: 1120 },
+  ]
+  for (let i = 0; i < 14; i++) {
+    const lane = lanes[i % lanes.length]
+    guests.push({
+      x: lane.x0 + (lane.x1 - lane.x0) * rand(),
+      y: lane.y0 + (lane.y1 - lane.y0) * rand(),
+      hue: Math.floor(rand() * 360),
+      delay: rand() * 8,
+      span: 18 + rand() * 36,
+    })
+  }
+  return guests
 }
 
 export type BushSpec = { x: number; y: number; scale: number }
