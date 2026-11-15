@@ -16,6 +16,8 @@ export type Screen = 'landing' | 'course' | 'editor' | 'playtest'
 export type LayoutKind = 'range' | 'hole'
 export type CourseId = 'a' | 'b'
 export type RangeSize = 'starter' | 'large'
+/** Construction progress on a claimed plot */
+export type BuildStage = 'raw' | 'terraformed' | 'built' | 'open'
 
 export interface Point {
   x: number
@@ -38,6 +40,7 @@ export interface Hole {
   tee: Point
   pin: Point
   designed: boolean
+  buildStage: BuildStage
   rating: number | null
   playCount: number
   bestScore: number | null
@@ -85,15 +88,15 @@ export const TERRAIN_FROM_INDEX: TerrainType[] = [
 
 export const TERRAIN_COST: Record<TerrainType, number> = {
   rough: 0,
-  fairway: 12,
-  green: 45,
-  bunker: 28,
-  water: 35,
-  tee: 40,
-  path: 8,
+  fairway: 4,
+  green: 14,
+  bunker: 10,
+  water: 12,
+  tee: 12,
+  path: 3,
 }
 
-export const SCULPT_COST = 4
+export const SCULPT_COST = 2
 
 export const GRID_W = 72
 export const GRID_H = 48

@@ -71,7 +71,7 @@ export function phaseCopy(holeCount: number): { title: string; detail: string } 
   if (holeCount === 0) {
     return {
       title: 'Claim your first acreage',
-      detail: 'Shape land north of the road for the opening hole of North Links.',
+      detail: 'Buy raw land north of the road, then terraform and build Hole 1 from scratch.',
     }
   }
   if (holeCount < 9) {
@@ -141,4 +141,30 @@ export function fieldPatches(seed = 1): { x: number; y: number; w: number; h: nu
     })
   }
   return patches
+}
+
+export type TreeSpec = { x: number; y: number; scale: number; variant: number }
+
+/** Decorative tree grove positions for Planet Zoo–style park canopy */
+export function parkTrees(seed = 3): TreeSpec[] {
+  const trees: TreeSpec[] = []
+  let s = seed * 7919
+  const rand = () => {
+    s = (s * 16807) % 2147483647
+    return (s - 1) / 2147483646
+  }
+  for (let i = 0; i < 160; i++) {
+    const x = rand() * WORLD_W
+    const y = rand() * WORLD_H
+    // Keep clear of the road band and clubhouse plaza
+    if (y > 1180 && y < 1520) continue
+    if (Math.hypot(x - CLUBHOUSE.x, y - CLUBHOUSE.y) < 220) continue
+    trees.push({
+      x,
+      y,
+      scale: 0.55 + rand() * 0.9,
+      variant: Math.floor(rand() * 3),
+    })
+  }
+  return trees
 }

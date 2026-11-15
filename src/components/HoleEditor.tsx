@@ -2,18 +2,18 @@ import { useEffect, useState } from 'react'
 import { ratingLabel } from '../game/rating'
 import { useGame } from '../game/store'
 import { yardage } from '../game/terrain'
-import type { EditorTool, PaintTool, SculptMode } from '../game/types'
+import type { BuildStage, EditorTool, PaintTool, SculptMode } from '../game/types'
 import { TerrainCanvas } from './TerrainCanvas'
 
 const PAINT_SWATCHES: { type: PaintTool; label: string; color: string }[] = [
-  { type: 'fairway', label: 'Fairway', color: '#589e4e' },
-  { type: 'green', label: 'Green', color: '#78bc62' },
-  { type: 'rough', label: 'Rough', color: '#3e6e3a' },
-  { type: 'bunker', label: 'Bunker', color: '#d6ba78' },
-  { type: 'water', label: 'Water', color: '#3a7694' },
-  { type: 'tee', label: 'Tee', color: '#488c48' },
-  { type: 'path', label: 'Path', color: '#948060' },
-  { type: 'erase', label: 'Rough reset', color: '#2a4a30' },
+  { type: 'fairway', label: 'Fairway', color: '#6eba5c' },
+  { type: 'green', label: 'Green', color: '#94d676' },
+  { type: 'rough', label: 'Rough', color: '#4a8c48' },
+  { type: 'bunker', label: 'Bunker', color: '#e4cc94' },
+  { type: 'water', label: 'Water', color: '#489cc4' },
+  { type: 'tee', label: 'Tee box', color: '#60a858' },
+  { type: 'path', label: 'Cart path', color: '#baa076' },
+  { type: 'erase', label: 'Clear to rough', color: '#3a6a38' },
 ]
 
 const SCULPT_MODES: { mode: SculptMode; label: string }[] = [
@@ -24,18 +24,45 @@ const SCULPT_MODES: { mode: SculptMode; label: string }[] = [
 ]
 
 const HOLE_TOOLS: { tool: EditorTool; label: string; hint: string }[] = [
-  { tool: 'paint', label: 'Paint', hint: 'Brush terrain types across the hole.' },
-  { tool: 'sculpt', label: 'Sculpt', hint: 'Raise, lower, and smooth the land.' },
-  { tool: 'tee', label: 'Place tee', hint: 'Click to set the teeing ground.' },
-  { tool: 'pin', label: 'Place pin', hint: 'Click to set the cup and flag.' },
+  {
+    tool: 'sculpt',
+    label: 'Terraform',
+    hint: 'Shape hills, hollows, and slopes on the raw land.',
+  },
+  {
+    tool: 'paint',
+    label: 'Build surfaces',
+    hint: 'Lay fairway, dig bunkers, plant the green, and cut paths.',
+  },
+  { tool: 'tee', label: 'Place tee', hint: 'Plant the teeing ground where play begins.' },
+  { tool: 'pin', label: 'Place cup', hint: 'Set the hole location on your green.' },
 ]
 
 const RANGE_TOOLS: { tool: EditorTool; label: string; hint: string }[] = [
-  { tool: 'paint', label: 'Paint', hint: 'Brush bays, landing strip, and target greens.' },
-  { tool: 'sculpt', label: 'Sculpt', hint: 'Shape the range floor and berms.' },
-  { tool: 'tee', label: 'Place bay', hint: 'Click to set the practice tee.' },
-  { tool: 'pin', label: 'Place target', hint: 'Click to set the main distance flag.' },
+  { tool: 'sculpt', label: 'Terraform', hint: 'Shape the range floor and berms.' },
+  { tool: 'paint', label: 'Build surfaces', hint: 'Lay landing strips, bays, and targets.' },
+  { tool: 'tee', label: 'Place bay', hint: 'Set a practice tee bay.' },
+  { tool: 'pin', label: 'Place target', hint: 'Set the main distance flag.' },
 ]
+
+const STAGE_COPY: Record<BuildStage, { title: string; detail: string }> = {
+  raw: {
+    title: 'Raw land',
+    detail: 'Terraform the acreage, then build fairway, green, and tee from scratch.',
+  },
+  terraformed: {
+    title: 'Terraforming',
+    detail: 'Land is moving — keep shaping, then lay turf and hazards.',
+  },
+  built: {
+    title: 'Under construction',
+    detail: 'Surfaces are in. Place tee and cup, then open the hole.',
+  },
+  open: {
+    title: 'Open for play',
+    detail: 'Guests can play this layout. Keep refining anytime.',
+  },
+}
 
 export function HoleEditor() {
   const hole = useGame((s) => s.getActiveHole())
@@ -61,7 +88,7 @@ export function HoleEditor() {
   if (!hole) {
     return (
       <main className="course">
-        <p>No hole selected.</p>
+        <p>No plot selected.</p>
         <button className="btn btn--ghost" type="button" onClick={() => setScreen('course')}>
           Back
         </button>
@@ -73,6 +100,7 @@ export function HoleEditor() {
   const isRange = layout.kind === 'range'
   const tools = isRange ? RANGE_TOOLS : HOLE_TOOLS
   const toolMeta = tools.find((t) => t.tool === editor.tool)
+  const stage = STAGE_COPY[layout.buildStage]
 
   function onStroke(x: number, y: number) {
     if (editor.tool === 'sculpt') applySculpt(x, y)
@@ -88,13 +116,30 @@ export function HoleEditor() {
     const result = finalizeHole()
     if (!result) return
     setToast(
-      `Rated ${result.rating} · ${ratingLabel(result.rating, layout.kind)}${result.prize > 0 ? ` · +$${result.prize}` : ''}`,
+      `Opened · ${result.rating} ${ratingLabel(result.rating, layout.kind)}${result.prize > 0 ? ` · +$${result.prize}` : ''}`,
     )
   }
 
   return (
     <div className="editor">
       <div className="editor__stage">
+        <div className="editor__banner">
+          <div>
+            <p className="editor__stage-kicker">{stage.title}</p>
+            <h1 className="editor__title">{layout.name}</h1>
+            <p className="editor__stage-detail">{stage.detail}</p>
+          </div>
+          <div className="stat-pills">
+            <span className="stat-pill">
+              <strong>{yardage(layout)}</strong> yds
+            </span>
+            {!isRange && (
+              <span className="stat-pill">
+                Par <strong>{layout.par}</strong>
+              </span>
+            )}
+          </div>
+        </div>
         <TerrainCanvas
           className="editor__canvas-wrap"
           hole={layout}
@@ -103,12 +148,14 @@ export function HoleEditor() {
           onPaint={editor.tool === 'sculpt' || editor.tool === 'paint' ? onStroke : undefined}
           onPlace={editor.tool === 'tee' || editor.tool === 'pin' ? onPlace : undefined}
         />
-        <p className="editor__hint">{toolMeta?.hint} Budget ${budget.toLocaleString()}.</p>
+        <p className="editor__hint">
+          {toolMeta?.hint} Construction budget ${budget.toLocaleString()}.
+        </p>
       </div>
 
       <aside className="editor__panel">
         <div className="panel-section">
-          <h3>{isRange ? 'Range' : 'Hole'}</h3>
+          <h3>{isRange ? 'Facility' : 'Plot'}</h3>
           <label htmlFor="hole-name">Name</label>
           <input
             id="hole-name"
@@ -130,20 +177,17 @@ export function HoleEditor() {
               </select>
             </>
           )}
-          <div className="stat-pills">
-            <span className="stat-pill">
-              <strong>{yardage(layout)}</strong> yds to target
-            </span>
-            {layout.rating !== null && (
+          {layout.rating !== null && (
+            <div className="stat-pills">
               <span className="stat-pill">
                 Rating <strong>{layout.rating}</strong>
               </span>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         <div className="panel-section">
-          <h3>Tools</h3>
+          <h3>Build tools</h3>
           <div className="tool-row">
             {tools.map(({ tool, label }) => (
               <button
@@ -160,7 +204,7 @@ export function HoleEditor() {
 
         {editor.tool === 'paint' && (
           <div className="panel-section">
-            <h3>Terrain</h3>
+            <h3>Surfaces</h3>
             <div className="tool-row">
               {PAINT_SWATCHES.map(({ type, label, color }) => (
                 <button
@@ -179,7 +223,7 @@ export function HoleEditor() {
 
         {editor.tool === 'sculpt' && (
           <div className="panel-section">
-            <h3>Sculpt</h3>
+            <h3>Terraform</h3>
             <div className="tool-row">
               {SCULPT_MODES.map(({ mode, label }) => (
                 <button
@@ -229,13 +273,13 @@ export function HoleEditor() {
 
         <div className="panel-section panel-actions">
           <button className="btn btn--primary" type="button" onClick={publish}>
-            {isRange ? 'Open the range' : 'Publish rating'}
+            {isRange ? 'Open facility' : 'Open hole for play'}
           </button>
           <button className="btn btn--solid" type="button" onClick={() => setScreen('playtest')}>
-            {isRange ? 'Hit balls' : 'Playtest hole'}
+            {isRange ? 'Test shots' : 'Playtest hole'}
           </button>
           <button className="btn btn--ghost" type="button" onClick={() => setScreen('course')}>
-            Back to map
+            Back to park
           </button>
         </div>
       </aside>

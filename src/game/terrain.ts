@@ -33,6 +33,7 @@ function seedElevation(elevation: Float32Array, id: number, width: number, heigh
   }
 }
 
+/** Claimed acreage: wild meadow — you terraform and build the hole from scratch. */
 export function createBlankHole(
   id: number,
   courseId: CourseId,
@@ -44,14 +45,23 @@ export function createBlankHole(
   const elevation = new Float32Array(width * height)
   const terrain = new Uint8Array(width * height)
 
-  seedElevation(elevation, id, width, height)
-  terrain.fill(TERRAIN_INDEX.rough)
+  // Uneven raw land — bumps, hollows, no fairway yet
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const n =
+        0.38 +
+        0.14 * Math.sin(x * 0.17 + id * 2.1) +
+        0.12 * Math.cos(y * 0.13 + id * 0.7) +
+        0.08 * Math.sin((x * y) * 0.004 + id) +
+        0.05 * Math.cos((x - y) * 0.09)
+      elevation[idx(x, y, width)] = clamp(n, 0.12, 0.88)
+      terrain[idx(x, y, width)] = TERRAIN_INDEX.rough
+    }
+  }
 
+  // Suggested markers only — nothing is built yet
   const tee: Point = { x: 8, y: Math.floor(height / 2) }
   const pin: Point = { x: width - 10, y: Math.floor(height / 2) }
-
-  stampCircle(terrain, tee.x, tee.y, 2, TERRAIN_INDEX.tee, width, height)
-  stampCircle(terrain, pin.x, pin.y, 4, TERRAIN_INDEX.green, width, height)
 
   const pos = holeMapPosition(courseId, number)
   const courseLabel = courseId === 'a' ? 'North' : 'South'
@@ -70,6 +80,7 @@ export function createBlankHole(
     tee,
     pin,
     designed: false,
+    buildStage: 'raw',
     rating: null,
     playCount: 0,
     bestScore: null,
@@ -144,12 +155,33 @@ export function createDrivingRange(size: 'starter' | 'large' = 'starter'): Hole 
     tee: { x: 7, y: 24 },
     pin: { x: size === 'large' ? 66 : 58, y: 24 },
     designed: true,
+    buildStage: 'open',
     rating: null,
     playCount: 0,
     bestScore: null,
     mapX: pos.x,
     mapY: pos.y,
   }
+}
+
+/** Infer construction stage from what's on the plot */
+export function inferBuildStage(hole: Hole): Hole['buildStage'] {
+  if (hole.kind === 'range') return hole.rating !== null ? 'open' : 'built'
+  if (hole.rating !== null) return 'open'
+  let fairway = 0
+  let green = 0
+  let tee = 0
+  for (let i = 0; i < hole.terrain.length; i++) {
+    const t = hole.terrain[i]
+    if (t === TERRAIN_INDEX.fairway) fairway++
+    if (t === TERRAIN_INDEX.green) green++
+    if (t === TERRAIN_INDEX.tee) tee++
+  }
+  if (fairway >= 20 && green >= 12 && tee >= 3) return 'built'
+  if (fairway > 0 || green > 0 || tee > 0) return 'terraformed'
+  // Any meaningful sculpt vs raw seed
+  if (hole.designed) return 'terraformed'
+  return 'raw'
 }
 
 /** Upgrade an existing range layout into the large footprint. */
@@ -162,6 +194,7 @@ export function expandRangeLayout(existing: Hole): Hole {
     bestScore: existing.bestScore,
     rating: null,
     designed: true,
+    buildStage: 'built',
   }
 }
 
@@ -352,7 +385,7 @@ export function serializeHole(hole: Hole) {
 
 export function deserializeHole(raw: ReturnType<typeof serializeHole>): Hole {
   const kind = raw.kind ?? (raw.id === 0 ? 'range' : 'hole')
-  return {
+  const hole: Hole = {
     ...raw,
     kind,
     courseId: raw.courseId ?? (kind === 'range' ? null : 'a'),
@@ -362,7 +395,10 @@ export function deserializeHole(raw: ReturnType<typeof serializeHole>): Hole {
     elevation: Float32Array.from(raw.elevation),
     terrain: Uint8Array.from(raw.terrain),
     par: raw.par as 3 | 4 | 5,
+    buildStage: raw.buildStage ?? 'raw',
   }
+  if (!raw.buildStage) hole.buildStage = inferBuildStage(hole)
+  return hole
 }
 
 /** Soft isometric shade from elevation neighbors */

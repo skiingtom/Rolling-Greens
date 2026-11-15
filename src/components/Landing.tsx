@@ -23,8 +23,8 @@ export function Landing() {
       <div className="landing__content">
         <h1 className="landing__brand">Rolling Greens</h1>
         <p className="landing__lede">
-          A county road, a clubhouse, and a driving range. Shape the land until you run two
-          eighteens — thirty-six holes and a grand range.
+          Claim raw acreage, terraform hills, and build each hole by hand — from a roadside range
+          to two full eighteens.
         </p>
 
         {!started ? (

@@ -242,7 +242,7 @@ export function Playtest() {
             Editor
           </button>
           <button className="btn btn--solid" type="button" onClick={() => setScreen('course')}>
-            World map
+            Park map
           </button>
         </div>
       </div>

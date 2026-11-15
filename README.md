@@ -1,6 +1,6 @@
 # Rolling Greens
 
-Build a golf resort from a roadside driving range into two full 18-hole courses (36 holes) and a grand range.
+Build a golf resort in a Planet Zoo–style park view: claim raw land, terraform it, and construct each hole by hand — from a roadside driving range to two full 18-hole courses (36 holes) plus a grand range.
 
 ## Play
 
@@ -11,11 +11,10 @@ npm run dev
 
 ## How to play
 
-1. Arrive at the **clubhouse** on County Rd 7 — you start with a **driving range** only.
-2. Pan the endless grounds map; click the range to shape bays and targets, then hit balls.
-3. **Collect range fees** each week, then **claim land** to shape Hole 1 of North Links.
-4. Grow through milestones: **9 holes → 18 → second course → 36 holes**.
-5. After an eighteen is open, **expand the driving range** into a grand practice facility.
-6. Each parcel opens the terrain editor (paint, sculpt, tee/pin) and a playtest mode.
+1. Arrive at the **clubhouse** on County Rd 7 with a starter **driving range**.
+2. **Collect range fees**, then **claim land** — new plots start as **raw meadow**.
+3. **Terraform** hills and hollows, **build surfaces** (fairway, green, bunkers, paths), place tee and cup.
+4. **Open the hole** for play, then playtest with pull-back aiming.
+5. Grow **9 → 18 → second 18 (36 holes)** and expand the range.
 
 Progress saves in the browser.

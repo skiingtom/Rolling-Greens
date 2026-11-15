@@ -17,16 +17,30 @@ import {
   fieldPatches,
   holeMapPosition,
   nextBuildTarget,
+  parkTrees,
   phaseCopy,
 } from '../game/world'
 
 function ParcelThumb({ hole }: { hole: Hole }) {
   const [src, setSrc] = useState('')
   useEffect(() => {
-    setSrc(holeThumbnail(hole, 140))
+    setSrc(holeThumbnail(hole, 160))
   }, [hole])
   if (!src) return <div className="parcel__thumb parcel__thumb--empty" />
   return <img className="parcel__thumb" src={src} alt="" draggable={false} />
+}
+
+function stageLabel(hole: Hole): string {
+  if (hole.kind === 'range') {
+    return hole.rating !== null
+      ? `${hole.rating} · ${ratingLabel(hole.rating, 'range')}`
+      : 'Practice open'
+  }
+  if (hole.rating !== null) return `${hole.rating} · ${ratingLabel(hole.rating, 'hole')}`
+  if (hole.buildStage === 'raw') return 'Raw land — terraform'
+  if (hole.buildStage === 'terraformed') return 'Shaping surfaces'
+  if (hole.buildStage === 'built') return 'Ready to open'
+  return hole.name
 }
 
 function roadPathD(): string {
@@ -59,10 +73,11 @@ export function WorldMap() {
   const last = useRef({ x: 0, y: 0 })
   const [cam, setCam] = useState({ x: mapFocusX, y: mapFocusY })
   const [toast, setToast] = useState<string | null>(null)
-  const [zoom, setZoom] = useState(0.72)
+  const [zoom, setZoom] = useState(0.78)
   const [viewSize, setViewSize] = useState({ w: 1200, h: 600 })
 
   const patches = useMemo(() => fieldPatches(7), [])
+  const trees = useMemo(() => parkTrees(5), [])
   const courseHoles = holes.filter((h) => h.kind === 'hole')
   const range = holes.find((h) => h.kind === 'range')
   const count = courseHoles.length
@@ -123,7 +138,7 @@ export function WorldMap() {
 
   function onWheel(e: React.WheelEvent) {
     e.preventDefault()
-    setZoom((z) => Math.max(0.4, Math.min(1.15, z - e.deltaY * 0.001)))
+    setZoom((z) => Math.max(0.42, Math.min(1.2, z - e.deltaY * 0.001)))
   }
 
   function claimLand() {
@@ -136,11 +151,12 @@ export function WorldMap() {
     setToast(result.message)
   }
 
-  const transform = `translate(${viewSize.w / 2 - cam.x * zoom}px, ${viewSize.h / 2 - cam.y * zoom}px) scale(${zoom})`
+  // Slight isometric foreshortening for a park-builder camera
+  const transform = `translate(${viewSize.w / 2 - cam.x * zoom}px, ${viewSize.h / 2 - cam.y * zoom}px) scale(${zoom}) skewX(-6deg) scaleY(0.9)`
 
   return (
     <main className="world">
-      <div className="world__hud" data-ui>
+      <div className="world__hud panel-glass" data-ui>
         <div>
           <h1>{clubName}</h1>
           <p className="world__milestone">{milestoneLabel(count, rangeSize)}</p>
@@ -148,9 +164,7 @@ export function WorldMap() {
         <div className="world__progress">
           <div className="world__meter">
             <span>Holes</span>
-            <strong>
-              {count}/36
-            </strong>
+            <strong>{count}/36</strong>
             <div className="world__bar">
               <i style={{ width: `${(count / 36) * 100}%` }} />
             </div>
@@ -196,6 +210,18 @@ export function WorldMap() {
             />
           ))}
 
+          {trees.map((t, i) => (
+            <div
+              key={`tree-${i}`}
+              className={`world__tree world__tree--${t.variant}`}
+              style={{
+                left: t.x,
+                top: t.y,
+                transform: `translate(-50%, -85%) scale(${t.scale})`,
+              }}
+            />
+          ))}
+
           <svg className="world__road" width={WORLD_W} height={WORLD_H}>
             <path d={roadPathD()} className="world__road-shoulder" />
             <path d={roadPathD()} className="world__road-asphalt" />
@@ -206,6 +232,7 @@ export function WorldMap() {
             className="world__clubhouse"
             style={{ left: CLUBHOUSE.x, top: CLUBHOUSE.y, width: CLUBHOUSE.w, height: CLUBHOUSE.h }}
           >
+            <div className="world__clubhouse-shadow" />
             <div className="world__clubhouse-roof" />
             <div className="world__clubhouse-body">
               <span>Clubhouse</span>
@@ -228,11 +255,7 @@ export function WorldMap() {
               <ParcelThumb hole={range} />
               <div className="parcel__label">
                 <strong>{range.name}</strong>
-                <span>
-                  {range.rating !== null
-                    ? `${range.rating} · ${ratingLabel(range.rating, 'range')}`
-                    : 'Open bays'}
-                </span>
+                <span>{stageLabel(range)}</span>
               </div>
             </button>
           )}
@@ -242,7 +265,7 @@ export function WorldMap() {
               key={hole.id}
               type="button"
               data-parcel
-              className={`parcel parcel--hole parcel--${hole.courseId}`}
+              className={`parcel parcel--hole parcel--${hole.courseId} parcel--stage-${hole.buildStage}`}
               style={{ left: hole.mapX, top: hole.mapY }}
               onClick={() => openHole(hole.id)}
             >
@@ -251,11 +274,7 @@ export function WorldMap() {
                 <strong>
                   #{hole.number} · Par {hole.par}
                 </strong>
-                <span>
-                  {hole.rating !== null
-                    ? `${hole.rating} · ${ratingLabel(hole.rating, 'hole')}`
-                    : hole.name}
-                </span>
+                <span>{stageLabel(hole)}</span>
               </div>
             </button>
           ))}
@@ -269,16 +288,16 @@ export function WorldMap() {
               onClick={claimLand}
             >
               <div className="parcel__claim-inner">
-                <span className="parcel__claim-kicker">Shape land</span>
+                <span className="parcel__claim-kicker">Claim &amp; shape</span>
                 <strong>
                   {target?.courseId === 'a' ? 'North' : 'South'} {target?.number}
                 </strong>
                 <span className="parcel__claim-cost">${cost.toLocaleString()}</span>
+                <span className="parcel__claim-note">Starts as raw land</span>
               </div>
             </button>
           )}
 
-          {/* Ghost future slots for atmosphere */}
           {count < 36 &&
             Array.from({ length: Math.min(4, 36 - count - 1) }, (_, i) => {
               const ghost = nextBuildTarget(count + 1 + i)
@@ -295,7 +314,7 @@ export function WorldMap() {
         </div>
       </div>
 
-      <aside className="world__dock" data-ui>
+      <aside className="world__dock panel-glass" data-ui>
         <div>
           <h2>{phase.title}</h2>
           <p>{phase.detail}</p>
@@ -315,7 +334,7 @@ export function WorldMap() {
             <button
               className="btn btn--ghost"
               type="button"
-              onClick={() => setZoom((z) => Math.max(0.4, z - 0.1))}
+              onClick={() => setZoom((z) => Math.max(0.42, z - 0.1))}
             >
               −
             </button>
@@ -332,13 +351,13 @@ export function WorldMap() {
             <button
               className="btn btn--ghost"
               type="button"
-              onClick={() => setZoom((z) => Math.min(1.15, z + 0.1))}
+              onClick={() => setZoom((z) => Math.min(1.2, z + 0.1))}
             >
               +
             </button>
           </div>
           <p className="world__hint">
-            Drag to pan the grounds · Budget ${budget.toLocaleString()} · Rep {reputation}
+            Drag to pan · Budget ${budget.toLocaleString()} · Rep {reputation}
           </p>
         </div>
       </aside>

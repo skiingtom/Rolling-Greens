@@ -6,6 +6,7 @@ import {
   createDrivingRange,
   deserializeHole,
   expandRangeLayout,
+  inferBuildStage,
   paint,
   sculpt,
   serializeHole,
@@ -71,7 +72,7 @@ interface GameStore {
   courseHoleCount: () => number
 }
 
-const SAVE_VERSION = 3
+const SAVE_VERSION = 4
 
 function starterProperty(): Hole[] {
   return [createDrivingRange('starter')]
@@ -121,11 +122,14 @@ export const useGame = create<GameStore>()(
 
       openHole: (id) => {
         const hole = get().holes.find((h) => h.id === id)
+        const tool =
+          hole?.kind === 'hole' && hole.buildStage === 'raw' ? 'sculpt' : get().editor.tool
         set({
           activeHoleId: id,
           screen: 'editor',
           mapFocusX: hole?.mapX ?? get().mapFocusX,
           mapFocusY: hole?.mapY ?? get().mapFocusY,
+          editor: { ...get().editor, tool },
         })
       },
 
@@ -174,9 +178,12 @@ export const useGame = create<GameStore>()(
         const cost = Math.min(budget, Math.max(SCULPT_COST, Math.ceil(changed * 0.15)))
         set({
           budget: budget - cost,
-          holes: holes.map((h) =>
-            h.id === activeHoleId ? { ...h, elevation, designed: true } : h,
-          ),
+          holes: holes.map((h) => {
+            if (h.id !== activeHoleId) return h
+            const next = { ...h, elevation, designed: true }
+            next.buildStage = inferBuildStage(next)
+            return next
+          }),
         })
       },
 
@@ -203,9 +210,12 @@ export const useGame = create<GameStore>()(
         const cost = Math.min(budget, changed * unitCost)
         set({
           budget: budget - cost,
-          holes: holes.map((h) =>
-            h.id === activeHoleId ? { ...h, terrain, designed: true } : h,
-          ),
+          holes: holes.map((h) => {
+            if (h.id !== activeHoleId) return h
+            const next = { ...h, terrain, designed: true }
+            next.buildStage = inferBuildStage(next)
+            return next
+          }),
         })
       },
 
@@ -219,7 +229,9 @@ export const useGame = create<GameStore>()(
             if (h.id !== activeHoleId) return h
             const terrain = new Uint8Array(h.terrain)
             paint(terrain, gx, gy, 2, 'tee', h.width, h.height)
-            return { ...h, tee: { x: gx, y: gy }, terrain, designed: true }
+            const next = { ...h, tee: { x: gx, y: gy }, terrain, designed: true }
+            next.buildStage = inferBuildStage(next)
+            return next
           }),
         })
       },
@@ -232,7 +244,9 @@ export const useGame = create<GameStore>()(
         set({
           holes: holes.map((h) => {
             if (h.id !== activeHoleId) return h
-            return { ...h, pin: { x: gx, y: gy }, designed: true }
+            const next = { ...h, pin: { x: gx, y: gy }, designed: true }
+            next.buildStage = inferBuildStage(next)
+            return next
           }),
         })
       },
@@ -257,7 +271,9 @@ export const useGame = create<GameStore>()(
           budget: budget + Math.round(prize),
           reputation: Math.min(100, reputation + repGain),
           holes: holes.map((h) =>
-            h.id === activeHoleId ? { ...h, rating, designed: true } : h,
+            h.id === activeHoleId
+              ? { ...h, rating, designed: true, buildStage: 'open' as const }
+              : h,
           ),
         })
         return { rating, prize: Math.round(prize) }
@@ -340,7 +356,7 @@ export const useGame = create<GameStore>()(
         return {
           ok: true,
           cost,
-          message: `Claimed land for ${hole.name} (−$${cost.toLocaleString()}).`,
+          message: `Claimed raw land for ${hole.name} (−$${cost.toLocaleString()}). Terraform it.`,
         }
       },
 
@@ -442,7 +458,7 @@ export const useGame = create<GameStore>()(
       },
     }),
     {
-      name: 'rolling-greens-v3',
+      name: 'rolling-greens-v4',
       partialize: (s) => ({
         clubName: s.clubName,
         budget: s.budget,

@@ -32,7 +32,7 @@ export function TopBar() {
       <div className="topbar__actions">
         {screen !== 'course' && (
           <button className="btn btn--ghost" type="button" onClick={() => setScreen('course')}>
-            World map
+            Park map
           </button>
         )}
         {screen === 'course' && (
