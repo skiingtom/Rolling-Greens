@@ -8,6 +8,7 @@ import {
   expandRangeLayout,
   inferBuildStage,
   paint,
+  placeWaterFeature,
   sculpt,
   serializeHole,
 } from './terrain'
@@ -25,12 +26,14 @@ import {
   type Screen,
   type SculptMode,
   type TerrainType,
+  type WaterMode,
 } from './types'
 import { defaultPar, nextBuildTarget } from './world'
 
 interface EditorPrefs {
   tool: EditorTool
   sculptMode: SculptMode
+  waterMode: WaterMode
   paintType: PaintTool
   brushRadius: number
   brushStrength: number
@@ -60,6 +63,7 @@ interface GameStore {
   setMapFocus: (x: number, y: number) => void
   applySculpt: (x: number, y: number) => void
   applyPaint: (x: number, y: number) => void
+  applyWater: (x: number, y: number) => void
   placeTee: (x: number, y: number) => void
   placePin: (x: number, y: number) => void
   finalizeHole: () => { rating: number; prize: number } | null
@@ -90,8 +94,9 @@ export const useGame = create<GameStore>()(
       rangeSize: 'starter',
       activeHoleId: null,
       editor: {
-        tool: 'paint',
+        tool: 'sculpt',
         sculptMode: 'raise',
+        waterMode: 'pond',
         paintType: 'fairway',
         brushRadius: 2.4,
         brushStrength: 0.7,
@@ -213,6 +218,48 @@ export const useGame = create<GameStore>()(
           holes: holes.map((h) => {
             if (h.id !== activeHoleId) return h
             const next = { ...h, terrain, designed: true }
+            next.buildStage = inferBuildStage(next)
+            return next
+          }),
+        })
+      },
+
+      applyWater: (x, y) => {
+        const { activeHoleId, holes, editor, budget } = get()
+        if (activeHoleId === null) return
+        const hole = holes.find((h) => h.id === activeHoleId)
+        if (!hole) return
+        const unit = TERRAIN_COST.water
+        if (editor.waterMode !== 'drain' && budget < unit) return
+        const elevation = new Float32Array(hole.elevation)
+        const terrain = new Uint8Array(hole.terrain)
+        const radius =
+          editor.waterMode === 'lake'
+            ? Math.max(editor.brushRadius, editor.brushRadius * 1.35)
+            : editor.waterMode === 'stream'
+              ? Math.max(1.2, editor.brushRadius * 0.75)
+              : editor.brushRadius
+        const { elevChanged, terrainChanged } = placeWaterFeature(
+          elevation,
+          terrain,
+          x,
+          y,
+          radius,
+          editor.brushStrength,
+          editor.waterMode,
+          hole.width,
+          hole.height,
+        )
+        if (!elevChanged && !terrainChanged) return
+        const digCost = Math.ceil(elevChanged * 0.2)
+        const waterCost =
+          editor.waterMode === 'drain' ? 0 : terrainChanged * unit
+        const cost = Math.min(budget, digCost + waterCost)
+        set({
+          budget: budget - cost,
+          holes: holes.map((h) => {
+            if (h.id !== activeHoleId) return h
+            const next = { ...h, elevation, terrain, designed: true }
             next.buildStage = inferBuildStage(next)
             return next
           }),
@@ -489,10 +536,12 @@ export const useGame = create<GameStore>()(
         const holes = (p.holes ?? []).map((raw) =>
           deserializeHole(raw as ReturnType<typeof serializeHole>),
         )
+        const savedEditor = (p.editor ?? {}) as Partial<EditorPrefs>
         return {
           ...current,
           ...(p as Partial<GameStore>),
           holes: holes.length ? holes : current.holes,
+          editor: { ...current.editor, ...savedEditor },
           saveVersion: SAVE_VERSION,
         }
       },

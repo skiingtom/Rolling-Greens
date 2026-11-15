@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { ratingLabel } from '../game/rating'
 import { useGame } from '../game/store'
 import { yardage } from '../game/terrain'
-import type { BuildStage, EditorTool, PaintTool, SculptMode } from '../game/types'
+import type { BuildStage, EditorTool, PaintTool, SculptMode, WaterMode } from '../game/types'
 import { TerrainCanvas } from './TerrainCanvas'
 
 const PAINT_SWATCHES: { type: PaintTool; label: string; color: string }[] = [
@@ -10,28 +10,40 @@ const PAINT_SWATCHES: { type: PaintTool; label: string; color: string }[] = [
   { type: 'green', label: 'Green', color: '#94d676' },
   { type: 'rough', label: 'Rough', color: '#4a8c48' },
   { type: 'bunker', label: 'Bunker', color: '#e4cc94' },
-  { type: 'water', label: 'Water', color: '#489cc4' },
   { type: 'tee', label: 'Tee box', color: '#60a858' },
   { type: 'path', label: 'Cart path', color: '#baa076' },
   { type: 'erase', label: 'Clear to rough', color: '#3a6a38' },
 ]
 
-const SCULPT_MODES: { mode: SculptMode; label: string }[] = [
-  { mode: 'raise', label: 'Raise' },
-  { mode: 'lower', label: 'Lower' },
-  { mode: 'smooth', label: 'Smooth' },
-  { mode: 'flatten', label: 'Flatten' },
+const SCULPT_MODES: { mode: SculptMode; label: string; hint: string }[] = [
+  { mode: 'raise', label: 'Raise', hint: 'Push earth up into mounds and ridges.' },
+  { mode: 'lower', label: 'Lower', hint: 'Cut hollows, valleys, and drainages.' },
+  { mode: 'smooth', label: 'Smooth', hint: 'Blend harsh edges into natural slopes.' },
+  { mode: 'flatten', label: 'Flatten', hint: 'Level the brush area to the center height.' },
+]
+
+const WATER_MODES: { mode: WaterMode; label: string; hint: string }[] = [
+  { mode: 'pond', label: 'Pond', hint: 'Dig a basin and fill it with water.' },
+  { mode: 'lake', label: 'Lake', hint: 'Carve a wider, deeper water hazard.' },
+  { mode: 'stream', label: 'Stream', hint: 'Cut a shallow channel — drag to shape the creek.' },
+  { mode: 'fill', label: 'Fill', hint: 'Paint water without digging.' },
+  { mode: 'drain', label: 'Drain', hint: 'Remove water and gently raise the bed.' },
 ]
 
 const HOLE_TOOLS: { tool: EditorTool; label: string; hint: string }[] = [
   {
     tool: 'sculpt',
-    label: 'Terraform',
-    hint: 'Shape hills, hollows, and slopes on the raw land.',
+    label: 'Land sculpt',
+    hint: 'Shape hills, hollows, and slopes on the acreage.',
+  },
+  {
+    tool: 'water',
+    label: 'Water',
+    hint: 'Add ponds, lakes, and streams — digs a basin as it fills.',
   },
   {
     tool: 'paint',
-    label: 'Build surfaces',
+    label: 'Surfaces',
     hint: 'Lay fairway, dig bunkers, plant the green, and cut paths.',
   },
   { tool: 'tee', label: 'Place tee', hint: 'Plant the teeing ground where play begins.' },
@@ -39,8 +51,13 @@ const HOLE_TOOLS: { tool: EditorTool; label: string; hint: string }[] = [
 ]
 
 const RANGE_TOOLS: { tool: EditorTool; label: string; hint: string }[] = [
-  { tool: 'sculpt', label: 'Terraform', hint: 'Shape the range floor and berms.' },
-  { tool: 'paint', label: 'Build surfaces', hint: 'Lay landing strips, bays, and targets.' },
+  { tool: 'sculpt', label: 'Land sculpt', hint: 'Shape the range floor and berms.' },
+  {
+    tool: 'water',
+    label: 'Water',
+    hint: 'Add ponds and water hazards beside the landing strips.',
+  },
+  { tool: 'paint', label: 'Surfaces', hint: 'Lay landing strips, bays, and targets.' },
   { tool: 'tee', label: 'Place bay', hint: 'Set a practice tee bay.' },
   { tool: 'pin', label: 'Place target', hint: 'Set the main distance flag.' },
 ]
@@ -48,11 +65,11 @@ const RANGE_TOOLS: { tool: EditorTool; label: string; hint: string }[] = [
 const STAGE_COPY: Record<BuildStage, { title: string; detail: string }> = {
   raw: {
     title: 'Raw land',
-    detail: 'Terraform the acreage, then build fairway, green, and tee from scratch.',
+    detail: 'Sculpt the acreage, dig water if you want, then build fairway and green.',
   },
   terraformed: {
     title: 'Terraforming',
-    detail: 'Land is moving — keep shaping, then lay turf and hazards.',
+    detail: 'Land is moving — keep sculpting, add water features, then lay turf.',
   },
   built: {
     title: 'Under construction',
@@ -73,6 +90,7 @@ export function HoleEditor() {
   const setHoleName = useGame((s) => s.setHoleName)
   const applySculpt = useGame((s) => s.applySculpt)
   const applyPaint = useGame((s) => s.applyPaint)
+  const applyWater = useGame((s) => s.applyWater)
   const placeTee = useGame((s) => s.placeTee)
   const placePin = useGame((s) => s.placePin)
   const finalizeHole = useGame((s) => s.finalizeHole)
@@ -101,9 +119,14 @@ export function HoleEditor() {
   const tools = isRange ? RANGE_TOOLS : HOLE_TOOLS
   const toolMeta = tools.find((t) => t.tool === editor.tool)
   const stage = STAGE_COPY[layout.buildStage]
+  const sculptHint = SCULPT_MODES.find((m) => m.mode === editor.sculptMode)?.hint
+  const waterHint = WATER_MODES.find((m) => m.mode === editor.waterMode)?.hint
+  const painting =
+    editor.tool === 'sculpt' || editor.tool === 'paint' || editor.tool === 'water'
 
   function onStroke(x: number, y: number) {
     if (editor.tool === 'sculpt') applySculpt(x, y)
+    else if (editor.tool === 'water') applyWater(x, y)
     else if (editor.tool === 'paint') applyPaint(x, y)
   }
 
@@ -118,6 +141,15 @@ export function HoleEditor() {
     setToast(
       `Opened · ${result.rating} ${ratingLabel(result.rating, layout.kind)}${result.prize > 0 ? ` · +$${result.prize}` : ''}`,
     )
+  }
+
+  function selectTool(tool: EditorTool) {
+    const patch: Partial<typeof editor> = { tool }
+    if (tool === 'water' && editor.brushRadius < 3) patch.brushRadius = 3.2
+    if (tool === 'water' && editor.waterMode === 'lake' && editor.brushRadius < 4) {
+      patch.brushRadius = 4.5
+    }
+    setEditor(patch)
   }
 
   return (
@@ -144,12 +176,17 @@ export function HoleEditor() {
           className="editor__canvas-wrap"
           hole={layout}
           brushRadius={editor.brushRadius}
-          showGrid={editor.tool === 'sculpt'}
-          onPaint={editor.tool === 'sculpt' || editor.tool === 'paint' ? onStroke : undefined}
+          showGrid={editor.tool === 'sculpt' || editor.tool === 'water'}
+          onPaint={painting ? onStroke : undefined}
           onPlace={editor.tool === 'tee' || editor.tool === 'pin' ? onPlace : undefined}
         />
         <p className="editor__hint">
-          {toolMeta?.hint} Construction budget ${budget.toLocaleString()}.
+          {editor.tool === 'sculpt' && sculptHint
+            ? sculptHint
+            : editor.tool === 'water' && waterHint
+              ? waterHint
+              : toolMeta?.hint}{' '}
+          Construction budget ${budget.toLocaleString()}.
         </p>
       </div>
 
@@ -193,8 +230,8 @@ export function HoleEditor() {
               <button
                 key={tool}
                 type="button"
-                className={`tool-chip${editor.tool === tool ? ' tool-chip--active' : ''}`}
-                onClick={() => setEditor({ tool })}
+                className={`tool-chip${editor.tool === tool ? ' tool-chip--active' : ''}${tool === 'water' ? ' tool-chip--water' : ''}${tool === 'sculpt' ? ' tool-chip--sculpt' : ''}`}
+                onClick={() => selectTool(tool)}
               >
                 {label}
               </button>
@@ -202,9 +239,55 @@ export function HoleEditor() {
           </div>
         </div>
 
+        {editor.tool === 'sculpt' && (
+          <div className="panel-section">
+            <h3>Land sculpt</h3>
+            <p className="panel-note">Drag on the plot to raise, cut, and blend earth.</p>
+            <div className="tool-row">
+              {SCULPT_MODES.map(({ mode, label }) => (
+                <button
+                  key={mode}
+                  type="button"
+                  className={`tool-chip${editor.sculptMode === mode ? ' tool-chip--active' : ''}`}
+                  onClick={() => setEditor({ sculptMode: mode })}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {editor.tool === 'water' && (
+          <div className="panel-section">
+            <h3>Water features</h3>
+            <p className="panel-note">
+              Ponds and lakes dig a basin as they fill. Streams cut a shallow channel.
+            </p>
+            <div className="tool-row">
+              {WATER_MODES.map(({ mode, label }) => (
+                <button
+                  key={mode}
+                  type="button"
+                  className={`tool-chip${editor.waterMode === mode ? ' tool-chip--active' : ''}`}
+                  onClick={() => {
+                    const patch: Partial<typeof editor> = { waterMode: mode }
+                    if (mode === 'lake') patch.brushRadius = Math.max(editor.brushRadius, 4.2)
+                    if (mode === 'stream') patch.brushRadius = Math.min(editor.brushRadius, 2.4)
+                    setEditor(patch)
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {editor.tool === 'paint' && (
           <div className="panel-section">
             <h3>Surfaces</h3>
+            <p className="panel-note">For water hazards, use the Water tool — it digs as it fills.</p>
             <div className="tool-row">
               {PAINT_SWATCHES.map(({ type, label, color }) => (
                 <button
@@ -221,25 +304,7 @@ export function HoleEditor() {
           </div>
         )}
 
-        {editor.tool === 'sculpt' && (
-          <div className="panel-section">
-            <h3>Terraform</h3>
-            <div className="tool-row">
-              {SCULPT_MODES.map(({ mode, label }) => (
-                <button
-                  key={mode}
-                  type="button"
-                  className={`tool-chip${editor.sculptMode === mode ? ' tool-chip--active' : ''}`}
-                  onClick={() => setEditor({ sculptMode: mode })}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {(editor.tool === 'paint' || editor.tool === 'sculpt') && (
+        {painting && (
           <div className="panel-section">
             <h3>Brush</h3>
             <div className="slider-row">
@@ -248,15 +313,18 @@ export function HoleEditor() {
                 id="brush-r"
                 type="range"
                 min={1}
-                max={6}
+                max={editor.tool === 'water' ? 9 : 6}
                 step={0.1}
                 value={editor.brushRadius}
                 onChange={(e) => setEditor({ brushRadius: Number(e.target.value) })}
               />
             </div>
-            {editor.tool === 'sculpt' && (
+            {(editor.tool === 'sculpt' || editor.tool === 'water') && (
               <div className="slider-row">
-                <label htmlFor="brush-s">Strength · {editor.brushStrength.toFixed(2)}</label>
+                <label htmlFor="brush-s">
+                  {editor.tool === 'water' ? 'Dig depth' : 'Strength'} ·{' '}
+                  {editor.brushStrength.toFixed(2)}
+                </label>
                 <input
                   id="brush-s"
                   type="range"

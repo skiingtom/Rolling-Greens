@@ -419,6 +419,13 @@ button:disabled {
   margin-bottom: 1.25rem;
 }
 
+.panel-note {
+  margin: 0 0 0.65rem;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
 .panel-section h3 {
   margin: 0 0 0.65rem;
   font-size: 0.72rem;
@@ -473,6 +480,18 @@ button:disabled {
   background: rgba(20, 184, 166, 0.16);
   border-color: rgba(13, 148, 136, 0.45);
   color: var(--teal-deep);
+}
+
+.tool-chip--sculpt.tool-chip--active {
+  background: rgba(245, 158, 11, 0.16);
+  border-color: rgba(217, 119, 6, 0.45);
+  color: #b45309;
+}
+
+.tool-chip--water.tool-chip--active {
+  background: rgba(56, 189, 248, 0.18);
+  border-color: rgba(14, 165, 233, 0.5);
+  color: #0369a1;
 }
 
 .tool-chip--swatch::before {

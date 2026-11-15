@@ -10,6 +10,7 @@ import {
   type Point,
   type SculptMode,
   type TerrainType,
+  type WaterMode,
 } from './types'
 
 export function idx(x: number, y: number, w = GRID_W): number {
@@ -308,7 +309,7 @@ export function sculpt(
   for (const { x, y } of cells) {
     const i = idx(x, y, w)
     const falloff = 1 - Math.hypot(x - cx, y - cy) / (radius + 0.001)
-    const delta = dir * strength * falloff * 0.08
+    const delta = dir * strength * falloff * 0.12
     const next = clamp(elevation[i] + delta, 0, 1)
     if (Math.abs(next - elevation[i]) > 0.0005) changed++
     elevation[i] = next
@@ -336,6 +337,85 @@ export function paint(
     }
   }
   return changed
+}
+
+/**
+ * Dig / fill water features: lowers a basin and paints water (or drains).
+ * Pond/lake dig first so the hazard sits in a hollow; stream is a shallow channel.
+ */
+export function placeWaterFeature(
+  elevation: Float32Array,
+  terrain: Uint8Array,
+  cx: number,
+  cy: number,
+  radius: number,
+  strength: number,
+  mode: WaterMode,
+  w: number,
+  h: number,
+): { elevChanged: number; terrainChanged: number } {
+  const gx = Math.floor(cx)
+  const gy = Math.floor(cy)
+
+  if (mode === 'fill') {
+    return {
+      elevChanged: 0,
+      terrainChanged: paint(terrain, gx, gy, radius, 'water', w, h),
+    }
+  }
+
+  if (mode === 'drain') {
+    const cells = brushCells(gx, gy, radius, w, h)
+    let terrainChanged = 0
+    let elevChanged = 0
+    for (const { x, y } of cells) {
+      const i = idx(x, y, w)
+      if (terrain[i] === TERRAIN_INDEX.water) {
+        terrain[i] = TERRAIN_INDEX.rough
+        terrainChanged++
+      }
+      const falloff = 1 - Math.hypot(x - gx, y - gy) / (radius + 0.001)
+      const next = clamp(elevation[i] + strength * falloff * 0.05, 0, 1)
+      if (Math.abs(next - elevation[i]) > 0.0005) elevChanged++
+      elevation[i] = next
+    }
+    return { elevChanged, terrainChanged }
+  }
+
+  const digRadius =
+    mode === 'lake' ? radius * 1.15 : mode === 'stream' ? radius * 0.72 : radius
+  const digDepth =
+    mode === 'lake' ? 0.12 : mode === 'stream' ? 0.055 : 0.09
+  const waterRadius =
+    mode === 'lake' ? radius * 0.92 : mode === 'stream' ? radius * 0.55 : radius * 0.78
+
+  // Dig the basin / channel
+  const digCells = brushCells(gx, gy, digRadius, w, h)
+  let elevChanged = 0
+  for (const { x, y } of digCells) {
+    const i = idx(x, y, w)
+    const falloff = 1 - Math.hypot(x - gx, y - gy) / (digRadius + 0.001)
+    const next = clamp(elevation[i] - strength * falloff * digDepth, 0, 1)
+    if (Math.abs(next - elevation[i]) > 0.0005) elevChanged++
+    elevation[i] = next
+  }
+
+  // Soft shoreline: water in the core, leave fringe as existing turf
+  const waterCells = brushCells(gx, gy, waterRadius, w, h)
+  let terrainChanged = 0
+  for (const { x, y } of waterCells) {
+    const i = idx(x, y, w)
+    const d = Math.hypot(x - gx, y - gy)
+    // Keep a thin shore ring empty of water for ponds/lakes
+    if (mode !== 'stream' && d > waterRadius * 0.88) continue
+    if (terrain[i] === TERRAIN_INDEX.tee || terrain[i] === TERRAIN_INDEX.green) continue
+    if (terrain[i] !== TERRAIN_INDEX.water) {
+      terrain[i] = TERRAIN_INDEX.water
+      terrainChanged++
+    }
+  }
+
+  return { elevChanged, terrainChanged }
 }
 
 export function yardage(hole: Hole): number {

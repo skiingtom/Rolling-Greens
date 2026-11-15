@@ -8,8 +8,9 @@ export type TerrainType =
   | 'path'
 
 export type SculptMode = 'raise' | 'lower' | 'smooth' | 'flatten'
+export type WaterMode = 'pond' | 'lake' | 'stream' | 'fill' | 'drain'
 export type PaintTool = TerrainType | 'erase'
-export type EditorTool = 'sculpt' | 'paint' | 'tee' | 'pin' | 'path'
+export type EditorTool = 'sculpt' | 'water' | 'paint' | 'tee' | 'pin' | 'path'
 
 export type Screen = 'landing' | 'course' | 'editor' | 'playtest'
 

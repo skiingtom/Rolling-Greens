@@ -7,7 +7,7 @@ const COLORS: Record<string, [number, number, number]> = {
   fairway: [110, 186, 92],
   green: [148, 214, 118],
   bunker: [228, 204, 148],
-  water: [72, 156, 196],
+  water: [56, 152, 210],
   tee: [96, 168, 88],
   path: [186, 160, 118],
 }
@@ -45,12 +45,34 @@ export function drawHole(
     for (let x = 0; x < w; x++) {
       const t = TERRAIN_FROM_INDEX[hole.terrain[y * w + x]] ?? 'rough'
       const shade = shadeAt(hole.elevation, x, y, w, h)
-      // Slight height extrusion cue
+      // Slight height extrusion cue — stronger so land sculpt reads clearly
       const lift = hole.elevation[y * w + x]
-      ctx.fillStyle = shadeRgb(COLORS[t], shade * (0.92 + lift * 0.16))
+      if (t === 'water') {
+        const depth = 1 - lift
+        const rip = 0.88 + 0.12 * Math.sin(x * 0.9 + y * 0.55)
+        ctx.fillStyle = shadeRgb(
+          COLORS.water,
+          (0.72 + depth * 0.35) * rip * (0.94 + shade * 0.08),
+        )
+      } else {
+        ctx.fillStyle = shadeRgb(COLORS[t], shade * (0.86 + lift * 0.28))
+      }
       ctx.fillRect(x * cell, y * cell, cell + 0.7, cell + 0.7)
     }
   }
+
+  // Soft water specular highlights
+  ctx.save()
+  ctx.globalAlpha = 0.22
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      if (TERRAIN_FROM_INDEX[hole.terrain[y * w + x]] !== 'water') continue
+      if ((x + y) % 5 !== 0) continue
+      ctx.fillStyle = '#e0f2fe'
+      ctx.fillRect(x * cell + cell * 0.2, y * cell + cell * 0.15, cell * 0.45, cell * 0.25)
+    }
+  }
+  ctx.restore()
 
   // Soft contour rings
   ctx.strokeStyle = 'rgba(40, 70, 40, 0.1)'
