@@ -98,8 +98,8 @@ export const useGame = create<GameStore>()(
       },
       started: false,
       saveVersion: SAVE_VERSION,
-      mapFocusX: 1680,
-      mapFocusY: 1280,
+      mapFocusX: 1780,
+      mapFocusY: 1180,
 
       setScreen: (screen) => set({ screen }),
       setMapFocus: (mapFocusX, mapFocusY) => set({ mapFocusX, mapFocusY }),
@@ -116,8 +116,8 @@ export const useGame = create<GameStore>()(
           rangeSize: 'starter',
           activeHoleId: null,
           saveVersion: SAVE_VERSION,
-          mapFocusX: 1680,
-          mapFocusY: 1280,
+          mapFocusX: 1780,
+          mapFocusY: 1180,
         }),
 
       openHole: (id) => {
@@ -451,8 +451,8 @@ export const useGame = create<GameStore>()(
           activeHoleId: null,
           started: false,
           saveVersion: SAVE_VERSION,
-          mapFocusX: 1680,
-          mapFocusY: 1280,
+          mapFocusX: 1780,
+          mapFocusY: 1180,
         }),
 
       getActiveHole: () => {

@@ -13,10 +13,13 @@ import {
 } from '../game/types'
 import {
   CLUBHOUSE,
+  PLAZA_PATH,
   ROAD_PATH,
   fieldPatches,
   holeMapPosition,
   nextBuildTarget,
+  parkBushes,
+  parkPonds,
   parkTrees,
   phaseCopy,
 } from '../game/world'
@@ -24,21 +27,21 @@ import {
 function ParcelThumb({ hole }: { hole: Hole }) {
   const [src, setSrc] = useState('')
   useEffect(() => {
-    setSrc(holeThumbnail(hole, 160))
+    setSrc(holeThumbnail(hole, 180))
   }, [hole])
-  if (!src) return <div className="parcel__thumb parcel__thumb--empty" />
-  return <img className="parcel__thumb" src={src} alt="" draggable={false} />
+  if (!src) return <div className="habitat__floor habitat__floor--empty" />
+  return <img className="habitat__floor" src={src} alt="" draggable={false} />
 }
 
 function stageLabel(hole: Hole): string {
   if (hole.kind === 'range') {
     return hole.rating !== null
       ? `${hole.rating} · ${ratingLabel(hole.rating, 'range')}`
-      : 'Practice open'
+      : 'Open for guests'
   }
   if (hole.rating !== null) return `${hole.rating} · ${ratingLabel(hole.rating, 'hole')}`
-  if (hole.buildStage === 'raw') return 'Raw land — terraform'
-  if (hole.buildStage === 'terraformed') return 'Shaping surfaces'
+  if (hole.buildStage === 'raw') return 'Raw habitat'
+  if (hole.buildStage === 'terraformed') return 'Terraforming'
   if (hole.buildStage === 'built') return 'Ready to open'
   return hole.name
 }
@@ -53,6 +56,11 @@ function roadPathD(): string {
     d += ` Q ${cx} ${prev.y} ${p.x} ${p.y}`
   }
   return d
+}
+
+function plazaPathD(): string {
+  const [a, b, c] = PLAZA_PATH
+  return `M ${a.x} ${a.y} L ${b.x} ${b.y} L ${c.x} ${c.y}`
 }
 
 export function WorldMap() {
@@ -74,11 +82,13 @@ export function WorldMap() {
   const last = useRef({ x: 0, y: 0 })
   const [cam, setCam] = useState({ x: mapFocusX, y: mapFocusY })
   const [toast, setToast] = useState<string | null>(null)
-  const [zoom, setZoom] = useState(0.78)
+  const [zoom, setZoom] = useState(0.95)
   const [viewSize, setViewSize] = useState({ w: 1200, h: 600 })
 
   const patches = useMemo(() => fieldPatches(7), [])
   const trees = useMemo(() => parkTrees(5), [])
+  const bushes = useMemo(() => parkBushes(9), [])
+  const ponds = useMemo(() => parkPonds(), [])
   const courseHoles = holes.filter((h) => h.kind === 'hole')
   const range = holes.find((h) => h.kind === 'range')
   const count = courseHoles.length
@@ -139,7 +149,7 @@ export function WorldMap() {
 
   function onWheel(e: React.WheelEvent) {
     e.preventDefault()
-    setZoom((z) => Math.max(0.42, Math.min(1.2, z - e.deltaY * 0.001)))
+    setZoom((z) => Math.max(0.45, Math.min(1.25, z - e.deltaY * 0.001)))
   }
 
   function claimLand() {
@@ -157,19 +167,24 @@ export function WorldMap() {
     setToast(`Week ${nextWeek} · +$${income.toLocaleString()} collected`)
   }
 
-  // Slight isometric foreshortening for a park-builder camera
-  const transform = `translate(${viewSize.w / 2 - cam.x * zoom}px, ${viewSize.h / 2 - cam.y * zoom}px) scale(${zoom}) skewX(-6deg) scaleY(0.9)`
+  // Strong isometric park-builder camera (Planet Zoo–like tilt)
+  const transform = `translate(${viewSize.w / 2 - cam.x * zoom}px, ${viewSize.h / 2 - cam.y * zoom * 0.82}px) scale(${zoom}) skewX(-16deg) scaleY(0.72)`
 
   return (
     <main className="world">
-      <div className="world__hud panel-glass" data-ui>
-        <div>
-          <h1>{clubName}</h1>
-          <p className="world__milestone">{milestoneLabel(count, rangeSize)}</p>
+      <div className="world__hud zoo-panel" data-ui>
+        <div className="world__hud-brand">
+          <div className="zoo-badge" aria-hidden>
+            RG
+          </div>
+          <div>
+            <h1>{clubName}</h1>
+            <p className="world__milestone">{milestoneLabel(count, rangeSize)}</p>
+          </div>
         </div>
         <div className="world__progress">
           <div className="world__meter">
-            <span>Holes</span>
+            <span>Course</span>
             <strong>{count}/36</strong>
             <div className="world__bar">
               <i style={{ width: `${(count / 36) * 100}%` }} />
@@ -179,12 +194,12 @@ export function WorldMap() {
             {COURSES.map((c) => {
               const n = courseHoles.filter((h) => h.courseId === c.id).length
               return (
-                <span key={c.id}>
+                <span key={c.id} className="zoo-chip">
                   {c.name} <strong>{n}/18</strong>
                 </span>
               )
             })}
-            <span>
+            <span className="zoo-chip">
               Range <strong>{rangeSize === 'large' ? 'Grand' : 'Starter'}</strong>
             </span>
           </div>
@@ -200,6 +215,12 @@ export function WorldMap() {
         onPointerCancel={onPointerUp}
         onWheel={onWheel}
       >
+        <div className="world__clouds" aria-hidden>
+          <span className="world__cloud world__cloud--a" />
+          <span className="world__cloud world__cloud--b" />
+          <span className="world__cloud world__cloud--c" />
+        </div>
+
         <div className="world__plane" style={{ width: WORLD_W, height: WORLD_H, transform }}>
           <div className="world__sky-wash" />
           {patches.map((p, i) => (
@@ -216,37 +237,52 @@ export function WorldMap() {
             />
           ))}
 
-          {trees.map((t, i) => (
+          {ponds.map((p, i) => (
             <div
-              key={`tree-${i}`}
-              className={`world__tree world__tree--${t.variant}`}
+              key={`pond-${i}`}
+              className="world__pond"
+              style={{ left: p.x, top: p.y, width: p.w, height: p.h }}
+            />
+          ))}
+
+          {bushes.map((b, i) => (
+            <div
+              key={`bush-${i}`}
+              className="world__bush"
               style={{
-                left: t.x,
-                top: t.y,
-                transform: `translate(-50%, -85%) scale(${t.scale})`,
+                left: b.x,
+                top: b.y,
+                transform: `translate(-50%, -70%) scale(${b.scale})`,
               }}
             />
           ))}
 
+          {/* Trees after parcels so canopy overlaps habitat edges */}
           <svg className="world__road" width={WORLD_W} height={WORLD_H}>
             <path d={roadPathD()} className="world__road-shoulder" />
             <path d={roadPathD()} className="world__road-asphalt" />
             <path d={roadPathD()} className="world__road-dash" />
+            <path d={plazaPathD()} className="world__plaza" />
           </svg>
 
           <div
             className="world__clubhouse"
-            style={{ left: CLUBHOUSE.x, top: CLUBHOUSE.y, width: CLUBHOUSE.w, height: CLUBHOUSE.h }}
+            style={{ left: CLUBHOUSE.x, top: CLUBHOUSE.y, width: CLUBHOUSE.w + 20, height: CLUBHOUSE.h + 20 }}
           >
             <div className="world__clubhouse-shadow" />
+            <div className="world__clubhouse-wing world__clubhouse-wing--l" />
+            <div className="world__clubhouse-wing world__clubhouse-wing--r" />
             <div className="world__clubhouse-roof" />
             <div className="world__clubhouse-body">
-              <span>Clubhouse</span>
+              <span className="world__clubhouse-window" />
+              <span className="world__clubhouse-window" />
+              <span className="world__clubhouse-door" />
             </div>
-            <div className="world__clubhouse-porch" />
+            <div className="world__clubhouse-awning" />
+            <div className="world__clubhouse-label">Clubhouse</div>
           </div>
 
-          <div className="world__road-sign" style={{ left: CLUBHOUSE.x - 90, top: CLUBHOUSE.y + 120 }}>
+          <div className="world__road-sign" style={{ left: CLUBHOUSE.x - 110, top: CLUBHOUSE.y + 130 }}>
             County Rd 7
           </div>
 
@@ -254,12 +290,13 @@ export function WorldMap() {
             <button
               type="button"
               data-parcel
-              className={`parcel parcel--range${rangeSize === 'large' ? ' parcel--range-large' : ''}`}
+              className={`habitat habitat--range${rangeSize === 'large' ? ' habitat--range-large' : ''}`}
               style={{ left: range.mapX, top: range.mapY }}
               onClick={() => openHole(range.id)}
             >
+              <div className="habitat__fence" />
               <ParcelThumb hole={range} />
-              <div className="parcel__label">
+              <div className="habitat__tag">
                 <strong>{range.name}</strong>
                 <span>{stageLabel(range)}</span>
               </div>
@@ -271,12 +308,13 @@ export function WorldMap() {
               key={hole.id}
               type="button"
               data-parcel
-              className={`parcel parcel--hole parcel--${hole.courseId} parcel--stage-${hole.buildStage}`}
+              className={`habitat habitat--hole habitat--${hole.courseId} habitat--stage-${hole.buildStage}`}
               style={{ left: hole.mapX, top: hole.mapY }}
               onClick={() => openHole(hole.id)}
             >
+              <div className="habitat__fence" />
               <ParcelThumb hole={hole} />
-              <div className="parcel__label">
+              <div className="habitat__tag">
                 <strong>
                   #{hole.number} · Par {hole.par}
                 </strong>
@@ -289,17 +327,18 @@ export function WorldMap() {
             <button
               type="button"
               data-parcel
-              className="parcel parcel--claim"
+              className="habitat habitat--claim"
               style={{ left: buildPos.x, top: buildPos.y }}
               onClick={claimLand}
             >
-              <div className="parcel__claim-inner">
-                <span className="parcel__claim-kicker">Claim &amp; shape</span>
+              <div className="habitat__fence habitat__fence--dashed" />
+              <div className="habitat__claim">
+                <span className="habitat__claim-kicker">New habitat</span>
                 <strong>
                   {target?.courseId === 'a' ? 'North' : 'South'} {target?.number}
                 </strong>
-                <span className="parcel__claim-cost">${cost.toLocaleString()}</span>
-                <span className="parcel__claim-note">Starts as raw land</span>
+                <span className="habitat__claim-cost">${cost.toLocaleString()}</span>
+                <span className="habitat__claim-note">Claim &amp; terraform</span>
               </div>
             </button>
           )}
@@ -312,68 +351,86 @@ export function WorldMap() {
               return (
                 <div
                   key={`ghost-${ghost.courseId}-${ghost.number}`}
-                  className="parcel parcel--ghost"
+                  className="habitat habitat--ghost"
                   style={{ left: pos.x, top: pos.y }}
                 />
               )
             })}
+
+          {trees.map((t, i) => (
+            <div
+              key={`tree-${i}`}
+              className={`world__tree world__tree--${t.variant}`}
+              style={{
+                left: t.x,
+                top: t.y,
+                transform: `translate(-50%, -88%) scale(${t.scale})`,
+                zIndex: 5 + Math.floor(t.y / 40),
+              }}
+            />
+          ))}
         </div>
       </div>
 
-      <aside className="world__dock panel-glass" data-ui>
-        <div>
+      <aside className="world__dock zoo-panel" data-ui>
+        <div className="world__dock-copy">
           <h2>{phase.title}</h2>
           <p>{phase.detail}</p>
         </div>
-        <div className="world__dock-actions">
+        <div className="world__toolbar">
           <button
-            className="btn btn--solid"
+            className="zoo-tool"
             type="button"
             data-testid="collect-fees-dock"
             onClick={onCollectFees}
+            title={count > 0 ? 'Collect fees' : 'Collect range fees'}
           >
-            {count > 0 ? 'Collect fees' : 'Collect range fees'}
+            <span className="zoo-tool__icon zoo-tool__icon--cash" />
+            <span>Fees</span>
           </button>
           {target && (
-            <button className="btn btn--primary" type="button" onClick={claimLand}>
-              Claim land · ${cost.toLocaleString()}
+            <button className="zoo-tool zoo-tool--accent" type="button" onClick={claimLand}>
+              <span className="zoo-tool__icon zoo-tool__icon--dig" />
+              <span>Claim</span>
             </button>
           )}
           {rangeSize === 'starter' && (
-            <button className="btn btn--ghost" type="button" onClick={onExpandRange}>
-              Expand range · ${RANGE_UPGRADE_COST.toLocaleString()}
+            <button className="zoo-tool" type="button" onClick={onExpandRange}>
+              <span className="zoo-tool__icon zoo-tool__icon--expand" />
+              <span>Range</span>
             </button>
           )}
-          <div className="world__zoom">
-            <button
-              className="btn btn--ghost"
-              type="button"
-              onClick={() => setZoom((z) => Math.max(0.42, z - 0.1))}
-            >
-              −
-            </button>
-            <button
-              className="btn btn--ghost"
-              type="button"
-              onClick={() => {
-                setCam({ x: CLUBHOUSE.x + 40, y: CLUBHOUSE.y })
-                setMapFocus(CLUBHOUSE.x + 40, CLUBHOUSE.y)
-              }}
-            >
-              Clubhouse
-            </button>
-            <button
-              className="btn btn--ghost"
-              type="button"
-              onClick={() => setZoom((z) => Math.min(1.2, z + 0.1))}
-            >
-              +
-            </button>
-          </div>
-          <p className="world__hint">
-            Drag to pan · Budget ${budget.toLocaleString()} · Rep {reputation}
-          </p>
+          <button
+            className="zoo-tool"
+            type="button"
+            onClick={() => setZoom((z) => Math.max(0.45, z - 0.1))}
+          >
+            <span>−</span>
+          </button>
+          <button
+            className="zoo-tool"
+            type="button"
+            onClick={() => {
+              setCam({ x: CLUBHOUSE.x + 40, y: CLUBHOUSE.y })
+              setMapFocus(CLUBHOUSE.x + 40, CLUBHOUSE.y)
+            }}
+          >
+            <span className="zoo-tool__icon zoo-tool__icon--home" />
+            <span>Home</span>
+          </button>
+          <button
+            className="zoo-tool"
+            type="button"
+            onClick={() => setZoom((z) => Math.min(1.25, z + 0.1))}
+          >
+            <span>+</span>
+          </button>
         </div>
+        <p className="world__hint">
+          Drag to explore · ${budget.toLocaleString()} · Rep {reputation}
+          {target ? ` · Next plot $${cost.toLocaleString()}` : ''}
+          {rangeSize === 'starter' ? ` · Expand range $${RANGE_UPGRADE_COST.toLocaleString()}` : ''}
+        </p>
       </aside>
 
       {toast && <div className="toast">{toast}</div>}

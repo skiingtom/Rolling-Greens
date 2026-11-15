@@ -145,7 +145,7 @@ export function fieldPatches(seed = 1): { x: number; y: number; w: number; h: nu
 
 export type TreeSpec = { x: number; y: number; scale: number; variant: number }
 
-/** Decorative tree grove positions for Planet Zoo–style park canopy */
+/** Dense canopy for a Planet Zoo–style park */
 export function parkTrees(seed = 3): TreeSpec[] {
   const trees: TreeSpec[] = []
   let s = seed * 7919
@@ -153,18 +153,78 @@ export function parkTrees(seed = 3): TreeSpec[] {
     s = (s * 16807) % 2147483647
     return (s - 1) / 2147483646
   }
-  for (let i = 0; i < 160; i++) {
+
+  // Landmark groves around the clubhouse / range so the start view feels lush
+  const groves = [
+    { cx: CLUBHOUSE.x - 220, cy: CLUBHOUSE.y - 80, n: 28, r: 160 },
+    { cx: CLUBHOUSE.x + 280, cy: CLUBHOUSE.y - 40, n: 24, r: 150 },
+    { cx: CLUBHOUSE.x - 40, cy: CLUBHOUSE.y - 220, n: 22, r: 140 },
+    { cx: 2100, cy: 1000, n: 30, r: 180 },
+    { cx: 1500, cy: 1050, n: 20, r: 130 },
+  ]
+  for (const g of groves) {
+    for (let i = 0; i < g.n; i++) {
+      const a = rand() * Math.PI * 2
+      const d = 40 + rand() * g.r
+      trees.push({
+        x: g.cx + Math.cos(a) * d,
+        y: g.cy + Math.sin(a) * d * 0.7,
+        scale: 0.85 + rand() * 1.1,
+        variant: Math.floor(rand() * 5),
+      })
+    }
+  }
+
+  for (let i = 0; i < 380; i++) {
     const x = rand() * WORLD_W
     const y = rand() * WORLD_H
-    // Keep clear of the road band and clubhouse plaza
-    if (y > 1180 && y < 1520) continue
-    if (Math.hypot(x - CLUBHOUSE.x, y - CLUBHOUSE.y) < 220) continue
+    // Keep clear of the road band and immediate plaza pad
+    if (y > 1260 && y < 1440) continue
+    if (Math.hypot(x - CLUBHOUSE.x, y - CLUBHOUSE.y) < 120) continue
+    if (x > 1950 && x < 2350 && y > 1040 && y < 1220 && rand() > 0.2) continue
     trees.push({
       x,
       y,
-      scale: 0.55 + rand() * 0.9,
-      variant: Math.floor(rand() * 3),
+      scale: 0.55 + rand() * 1.2,
+      variant: Math.floor(rand() * 5),
     })
   }
   return trees
 }
+
+export type BushSpec = { x: number; y: number; scale: number }
+
+export function parkBushes(seed = 11): BushSpec[] {
+  const bushes: BushSpec[] = []
+  let s = seed * 4243
+  const rand = () => {
+    s = (s * 16807) % 2147483647
+    return (s - 1) / 2147483646
+  }
+  for (let i = 0; i < 180; i++) {
+    const x = rand() * WORLD_W
+    const y = rand() * WORLD_H
+    if (y > 1240 && y < 1460) continue
+    if (Math.hypot(x - CLUBHOUSE.x, y - CLUBHOUSE.y) < 180) continue
+    bushes.push({ x, y, scale: 0.5 + rand() * 0.8 })
+  }
+  return bushes
+}
+
+/** Decorative ponds for park atmosphere */
+export function parkPonds(_seed = 19): { x: number; y: number; w: number; h: number }[] {
+  void _seed
+  return [
+    { x: 1320, y: 1080, w: 160, h: 70 },
+    { x: 2480, y: 1600, w: 200, h: 90 },
+    { x: 720, y: 600, w: 140, h: 60 },
+    { x: 3100, y: 900, w: 180, h: 75 },
+  ]
+}
+
+/** Plaza path from road up to clubhouse / range */
+export const PLAZA_PATH = [
+  { x: CLUBHOUSE.x, y: 1380 },
+  { x: CLUBHOUSE.x, y: CLUBHOUSE.y + 40 },
+  { x: 1980, y: 1180 },
+]
